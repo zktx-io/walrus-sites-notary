@@ -1,54 +1,17 @@
-# React + TypeScript + Vite
+# walrus-sites-notary
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Verify your Walrus Site with SLSA Provenance**
 
-Currently, two official plugins are available:
+## ✨ Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+**`walrus-sites-notary`** is a frontend tool for verifying Walrus Site deployments using [SLSA provenance](https://slsa.dev/).  
+It ensures that your static site was deployed through a trusted GitHub Actions workflow and that each resource matches its on-chain hash.
 
-## Expanding the ESLint configuration
+> 🔍 Try it live: [https://notary.wal.app](https://notary.wal.app)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🧪 How It Works
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+![notary](https://docs.zktx.io/images/walrus-notary.png)
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+Just enter a `.wal.app` site address and click **Verify**.  
+Notary will check the site’s on-chain data and its attached SLSA provenance.
