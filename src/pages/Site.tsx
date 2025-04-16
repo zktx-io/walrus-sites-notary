@@ -75,6 +75,7 @@ export const Site = () => {
 
     const fetchData = async () => {
       try {
+        setProvenance(undefined); 
         setLoading(true);
         const siteData = await getSiteResources(prefix);
         setSiteResources(siteData);
