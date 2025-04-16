@@ -68,6 +68,20 @@ export const Site = () => {
   };
 
   useEffect(() => {
+    setLoading(true);
+    setProvenance(undefined);
+    setSiteResources({
+      id: '',
+      creator: '',
+      description: '',
+      imageUrl: '',
+      link: '',
+      name: '',
+      projectUrl: '',
+      resources: [],
+    });
+    setCurrentPage(1);
+
     if (!prefix) {
       setLoading(false);
       return;
@@ -75,10 +89,9 @@ export const Site = () => {
 
     const fetchData = async () => {
       try {
-        setProvenance(undefined); 
-        setLoading(true);
         const siteData = await getSiteResources(prefix);
         setSiteResources(siteData);
+
         const jsonl = siteData.resources.find(
           (res) => res.path === '/.well-known/walrus-sites.intoto.jsonl',
         );
