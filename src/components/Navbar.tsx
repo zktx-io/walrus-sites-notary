@@ -11,7 +11,9 @@ export const Navbar = ({
   prefix?: string;
 }) => {
   const [domain, setDomain] = useState<string>(
-    prefix ? `${prefix}.wal.app` : 'notary.wal.app',
+    prefix
+      ? `${prefix}${NETWORK === 'mainnet' ? '.wal.app' : '.localhost:3000'}`
+      : 'notary.wal.app',
   );
   const [error, setError] = useState<boolean>(false);
   const navigate = useNavigate();
