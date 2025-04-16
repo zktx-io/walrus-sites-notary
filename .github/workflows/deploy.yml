@@ -1,0 +1,16 @@
+name: Deploy My Static Site to Walrus with Provenance
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+
+jobs:
+  deploy-with-provenance:
+    uses: zktx-io/walrus-sites-provenance/.github/workflows/deploy_with_slsa3.yml@v0.1.8
+    secrets:
+      ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
