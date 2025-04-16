@@ -1,4 +1,4 @@
-import { Github, BookOpen, Link, Check } from 'lucide-react';
+import { Github, BookOpen, Info, Check } from 'lucide-react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { NETWORK } from '../utils/getSiteResources';
@@ -79,22 +79,22 @@ export const Navbar = ({
               GitHub
             </a>
             <a
-              href="https://docs.walrus.site/"
+              href="https://docs.walrus.site"
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-1 hover:underline"
             >
               <BookOpen className="w-4 h-4" />
-              Walrus Docs
+              Walrus
             </a>
             <a
-              href="https://zktx-io.github.io/walrus-sites-provenance/"
+              href="https://docs.zktx.io"
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-1 hover:underline"
             >
-              <Link className="w-4 h-4" />
-              Notary Docs
+              <Info className="w-4 h-4" />
+              zktx.io
             </a>
           </div>
         )}
