@@ -6,7 +6,7 @@ import {
   SuiClient,
   SuiParsedData,
 } from '@mysten/sui/client';
-import { toBase64 } from '@mysten/sui/utils';
+import { toBase64, toHex } from '@mysten/sui/utils';
 import { SuinsClient } from '@mysten/suins';
 
 const OBJECTSIZE = 50;
@@ -24,6 +24,18 @@ const bigintToBase64UrlLE = (num: string): string => {
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+};
+
+const bigintToHexLE = (num: string): string => {
+  const bytes = new Uint8Array(32);
+
+  let temp = BigInt(num);
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = Number(temp & 0xffn);
+    temp >>= 8n;
+  }
+
+  return toHex(bytes);
 };
 
 const getMoveField = (
@@ -64,6 +76,10 @@ interface ResourceData {
   path: string;
   blobId: string;
   blobHash: string;
+  range?: {
+    start: number;
+    end: number;
+  };
 }
 
 export interface SiteResourceData {
@@ -103,6 +119,12 @@ export async function getAllObjects(
             path: string;
             blob_id: string;
             blob_hash: string;
+            range?: {
+              fields: {
+                start: string;
+                end: string;
+              };
+            };
           };
         };
       };
@@ -112,12 +134,18 @@ export async function getAllObjects(
       id: content.fields.id.id,
       path: content.fields.value.fields.path,
       blobId: bigintToBase64UrlLE(content.fields.value.fields.blob_id),
-      blobHash: content.fields.value.fields.blob_hash,
+      blobHash: bigintToHexLE(content.fields.value.fields.blob_hash),
+      range: content.fields.value.fields.range
+        ? {
+            end: parseInt(content.fields.value.fields.range?.fields.end),
+            start: parseInt(content.fields.value.fields.range?.fields.start),
+          }
+        : undefined,
     };
   });
 }
 
-export const NETWORK = 'mainnet';
+export const NETWORK: 'mainnet' | 'testnet' = 'testnet';
 
 export const getSiteResources = async (
   prefix: string,
@@ -129,14 +157,24 @@ export const getSiteResources = async (
       network: NETWORK,
     });
 
-    const nameRecord = await suinsClient.getNameRecord(`${prefix}.sui`);
+    let siteId = '';
 
-    if (!nameRecord || !nameRecord.walrusSiteId) {
-      throw new Error('Failed to resolve name service address.');
+    if (/^[0-9a-z]{50}$/.test(prefix)) {
+      siteId = BigInt(
+        `0x${[...prefix]
+          .reduce((acc, char) => acc * 36n + BigInt(parseInt(char, 36)), 0n)
+          .toString(16)}`,
+      ).toString(16);
+    } else {
+      const nameRecord = await suinsClient.getNameRecord(`${prefix}.sui`);
+      if (!nameRecord || !nameRecord.walrusSiteId) {
+        throw new Error('Failed to resolve name service address.');
+      }
+      siteId = nameRecord.walrusSiteId;
     }
 
     const siteObject = await suiClient.getObject({
-      id: nameRecord.walrusSiteId,
+      id: siteId,
       options: { showContent: true },
     });
 
@@ -149,14 +187,22 @@ export const getSiteResources = async (
       throw new Error('Failed to fetch site object.');
     }
 
-    const ids = await getAllDynamicFields(suiClient, nameRecord.walrusSiteId);
+    const ids = await getAllDynamicFields(suiClient, siteId);
     const resources = await getAllObjects(suiClient, {
       ids,
       options: { showContent: true },
     });
 
+    resources.sort((a, b) => {
+      return a.path === '/.well-known/walrus-sites.intoto.jsonl'
+        ? -1
+        : b.path === '/.well-known/walrus-sites.intoto.jsonl'
+          ? 1
+          : 0;
+    });
+
     return {
-      id: nameRecord.walrusSiteId,
+      id: siteId,
       creator: getMoveField(siteObject.data.content!, 'creator'),
       description: getMoveField(siteObject.data.content!, 'description'),
       imageUrl: getMoveField(siteObject.data.content!, 'image_url'),

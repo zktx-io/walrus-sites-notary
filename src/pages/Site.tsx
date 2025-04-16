@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
-  AlertTriangle,
-  Check,
   Hash,
   User,
   Info,
@@ -16,15 +14,20 @@ import {
   NETWORK,
   SiteResourceData,
 } from '../utils/getSiteResources';
+import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
+import { ProvenanceCard } from '../components/ProvenanceCard';
+import { Navbar } from '../components/Navbar';
+import { truncateMiddle } from '../utils/truncateMiddle';
+import { readBlob } from '../utils/readBlob';
 
 export const Site = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const prefix = searchParams.get('q') || '';
 
-  const [domain, setDomain] = useState(`${prefix}.wal.app`);
   const [loading, setLoading] = useState(true);
-  const [provenance, setProvenance] = useState<string>('');
+  const [provenance, setProvenance] = useState<JsonLPayload | undefined>(
+    undefined,
+  );
   const [siteResources, setSiteResources] = useState<SiteResourceData>({
     id: '',
     creator: '',
@@ -46,16 +49,22 @@ export const Site = () => {
   const getVerificationStatus = (res: {
     path: string;
     blobHash: string;
-  }): 'Verified' | 'Not verified' | 'Unknown' => {
-    if (!provenance) return 'Unknown';
-    /*
-    const match = provenance.subjects?.some(
-      (s: any) => s.name === res.path && s.digest.sha256 === res.blobHash,
+  }): 'Verified' | 'Not verified' | 'Unknown' | 'Provenance file' => {
+    if (!provenance) {
+      return 'Unknown';
+    }
+
+    if (res.path === '/.well-known/walrus-sites.intoto.jsonl') {
+      return 'Provenance file';
+    }
+
+    const match = provenance.subject.some(
+      (s: { name: string; digest: { sha256: string } }) =>
+        (s.name.startsWith('/') ? s.name : `/${s.name}`) === res.path &&
+        s.digest.sha256 === res.blobHash,
     );
 
     return match ? 'Verified' : 'Not verified';
-    */
-    return 'Verified';
   };
 
   useEffect(() => {
@@ -65,22 +74,19 @@ export const Site = () => {
     }
 
     const fetchData = async () => {
-      const siteData = await getSiteResources(prefix);
-      setSiteResources(siteData);
-
       try {
         setLoading(true);
-
-        const jsonlUrl = `https://${prefix}.wal.app/.well-known/walrus-sites.intoto.jsonl`;
-        const response = await fetch(jsonlUrl);
-        if (response.ok) {
-          // const jsonlText = await response.text();
-          // setProvenance(parseJsonl(jsonlText)); // implement
-        } else {
-          setProvenance('');
+        const siteData = await getSiteResources(prefix);
+        setSiteResources(siteData);
+        const jsonl = siteData.resources.find(
+          (res) => res.path === '/.well-known/walrus-sites.intoto.jsonl',
+        );
+        if (jsonl) {
+          const blobBytes = await readBlob(jsonl.blobId, jsonl.range);
+          setProvenance(parseJsonl(new TextDecoder().decode(blobBytes)));
         }
       } catch {
-        setProvenance('');
+        setProvenance(undefined);
       } finally {
         setLoading(false);
       }
@@ -89,46 +95,9 @@ export const Site = () => {
     fetchData();
   }, [prefix]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = `https://${domain}`;
-    const match = url.match(/^https:\/\/([a-z0-9-]+)\.wal\.app$/i);
-    if (!match) {
-      /*
-      setError(
-        'Only `.wal.app` domains are supported. Please enter a valid address.',
-      );
-      */
-      // TODO: Modal
-      return;
-    }
-    navigate(`/site?q=${match[1]}`);
-  };
-
   return (
     <div className="relative min-h-screen text-white overflow-hidden bg-[#0b0d14]">
-      <form
-        onSubmit={handleSubmit}
-        className="fixed top-0 left-0 w-full bg-[#111827] z-20 border-b border-gray-700"
-      >
-        <div className="max-w-4xl mx-auto flex items-center px-4 py-3">
-          <span className="text-white mr-2 select-none">https://</span>
-          <input
-            type="text"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            placeholder="notary.wal.app"
-            className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none border-b border-gray-600 py-1"
-          />
-          <button
-            type="submit"
-            className="ml-2 bg-green-400 hover:bg-green-500 text-black rounded-full w-6 h-6 flex items-center justify-center"
-            aria-label="Verify"
-          >
-            <Check className="w-4 h-4" />
-          </button>
-        </div>
-      </form>
+      <Navbar showInput={true} prefix={prefix} />
 
       {prefix ? (
         <div className="flex justify-center items-center px-4 pt-[88px] pb-12">
@@ -140,9 +109,13 @@ export const Site = () => {
             ) : (
               <>
                 <h1 className="text-3xl font-bold mb-4 text-center">
-                  Verification Result for{' '}
-                  <span className="text-green-400">{prefix}.wal.app</span>
+                  <div>Verification Result for</div>
+                  <div className="text-green-400">
+                    {truncateMiddle(prefix, 20)}.wal.app
+                  </div>
                 </h1>
+
+                <ProvenanceCard provenance={provenance} />
 
                 <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
                   {[
@@ -150,7 +123,9 @@ export const Site = () => {
                       <Hash className="w-4 h-4 text-gray-400" />,
                       'Site Object ID',
                       siteResources.id,
-                      `https://suiscan.xyz/${NETWORK}/object/${siteResources.id}`,
+                      siteResources.id
+                        ? `https://suiscan.xyz/${NETWORK}/object/${siteResources.id}`
+                        : '',
                     ],
                     [
                       <User className="w-4 h-4 text-gray-400" />,
@@ -224,24 +199,6 @@ export const Site = () => {
                 </div>
 
                 <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
-                  <div className="flex items-center gap-2 mb-4 text-lg font-semibold">
-                    {provenance ? (
-                      <>
-                        <Check className="text-green-400 w-5 h-5" />
-                        <span className="text-green-400">
-                          Provenance file found
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="text-yellow-400 w-5 h-5" />
-                        <span className="text-yellow-400">
-                          No provenance file
-                        </span>
-                      </>
-                    )}
-                  </div>
-
                   <table className="w-full text-sm table-auto border-collapse">
                     <thead className="text-gray-400 border-b border-gray-700">
                       <tr>
@@ -294,6 +251,11 @@ export const Site = () => {
                               )}
                               {status === 'Unknown' && (
                                 <span className="text-gray-500 italic">
+                                  {status}
+                                </span>
+                              )}
+                              {status === 'Provenance file' && (
+                                <span className="text-gray-400 italic">
                                   {status}
                                 </span>
                               )}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
+import { Navbar } from '../components/Navbar';
+import { NETWORK } from '../utils/getSiteResources';
 
 export const Home = () => {
   const navigate = useNavigate();
@@ -9,11 +11,13 @@ export const Home = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const url = `https://${domain}`;
-    const match = url.match(/^https:\/\/([a-z0-9-]+)\.wal\.app$/i);
+    const url = `${NETWORK === 'mainnet' ? 'https' : 'http'}://${domain}`;
+    const match = url.match(
+      /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
+    );
     if (!match) {
       setError(
-        'Only `.wal.app` domains are supported. Please enter a valid address.',
+        'Only `.wal.app` or `.localhost:3000` domains are supported. Please enter a valid address.',
       );
       return;
     }
@@ -22,27 +26,45 @@ export const Home = () => {
   };
 
   return (
-    <div className="relative min-h-screen text-white overflow-hidden flex items-center justify-center">
-      <div className="z-10 flex flex-col items-center text-center px-4">
-        <h1 className="text-5xl font-bold">Verify Your Deployment</h1>
-        <p className="m-4  text-lg text-gray-400">
+    <div className="relative min-h-screen text-white overflow-hidden flex flex-col items-center justify-center px-4">
+      <Navbar />
+
+      <div className="z-10 flex flex-col items-center text-center mt-24">
+        <h2 className="text-5xl font-bold">Verify Your Deployment</h2>
+        <p className="mt-4 text-lg text-gray-400">
           Your trusted source of truth.
         </p>
-        <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto">
+        <form onSubmit={handleSubmit} className="w-full max-w-2xl mt-6">
           <div className="p-[4px] rounded-full bg-gradient-to-r from-purple-500 via-blue-500 to-green-400">
             <div className="flex items-center bg-[#1a1a2e] rounded-full px-4 py-2">
-              <span className="text-white px-1 select-none">https://</span>
+              <span className="text-white px-1 select-none">{`${NETWORK === 'mainnet' ? 'https' : 'http'}://`}</span>
               <input
                 type="text"
                 value={domain}
-                onChange={(e) => setDomain(e.target.value)}
+                onChange={(e) => {
+                  const url = `${NETWORK === 'mainnet' ? 'https' : 'http'}://${e.target.value}`;
+                  const match = url.match(
+                    /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
+                  );
+                  setError(
+                    match
+                      ? ''
+                      : 'Only `.wal.app` or `.localhost:3000` domains are supported. Please enter a valid address.',
+                  );
+                  setDomain(e.target.value);
+                }}
                 placeholder="notary.wal.app"
                 className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none py-2"
               />
               <button
                 type="submit"
-                className="ml-2 bg-green-400 hover:bg-green-500 text-black rounded-full p-3"
+                className={`bg-green-400 text-black rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
+                  error
+                    ? 'opacity-50 cursor-not-allowed pointer-events-none'
+                    : 'hover:bg-green-500 cursor-pointer'
+                }`}
                 aria-label="Verify"
+                disabled={!!error}
               >
                 <Check />
               </button>
