@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import {
   Hash,
   User,
@@ -9,16 +7,19 @@ import {
   Tag,
   ExternalLink,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+import { Navbar } from '../components/Navbar';
+import { ProvenanceCard } from '../components/ProvenanceCard';
 import {
   getSiteResources,
   NETWORK,
   SiteResourceData,
 } from '../utils/getSiteResources';
 import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
-import { ProvenanceCard } from '../components/ProvenanceCard';
-import { Navbar } from '../components/Navbar';
-import { truncateMiddle } from '../utils/truncateMiddle';
 import { readBlob } from '../utils/readBlob';
+import { truncateMiddle } from '../utils/truncateMiddle';
 
 export const Site = () => {
   const [searchParams] = useSearchParams();

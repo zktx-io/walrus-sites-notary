@@ -1,6 +1,12 @@
-import { Github, BookOpen, Info, Check } from 'lucide-react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import {
+  ConnectModal,
+  useCurrentAccount,
+  useDisconnectWallet,
+} from '@mysten/dapp-kit';
+import { Github, BookOpen, Info, Check, Wallet, LogOut } from 'lucide-react';
 import { useState } from 'react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+
 import { NETWORK } from '../utils/getSiteResources';
 
 export const Navbar = ({
@@ -10,6 +16,9 @@ export const Navbar = ({
   showInput?: boolean;
   prefix?: string;
 }) => {
+  const currentAccount = useCurrentAccount();
+  const { mutate: disconnect } = useDisconnectWallet();
+  const [open, setOpen] = useState(false);
   const [domain, setDomain] = useState<string>(
     prefix
       ? `${prefix}${NETWORK === 'mainnet' ? '.wal.app' : '.localhost:3000'}`
@@ -98,6 +107,28 @@ export const Navbar = ({
               <Info className="w-4 h-4" />
               zktx.io
             </a>
+            {currentAccount ? (
+              <button
+                className="p-2 rounded-full transition-colors hover:bg-white/10 cursor-pointer"
+                title={currentAccount.address}
+                onClick={() => disconnect()}
+              >
+                <LogOut className="w-5 h-5 text-white" />
+              </button>
+            ) : (
+              <ConnectModal
+                trigger={
+                  <button
+                    className="p-2 rounded-full transition-colors hover:bg-white/10 cursor-pointer"
+                    disabled={!!currentAccount}
+                  >
+                    <Wallet className="w-5 h-5 text-white" />
+                  </button>
+                }
+                open={open}
+                onOpenChange={(isOpen) => setOpen(isOpen)}
+              />
+            )}
           </div>
         )}
       </div>
