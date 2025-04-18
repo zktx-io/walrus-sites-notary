@@ -27,9 +27,9 @@ export const Sign = () => {
 
   const { mutateAsync: signTransaction } = useSignTransaction();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
-  const [pin, setPin] = useState<string>('');
   const [keypair, setKeypair] = useState<Ed25519Keypair | undefined>(undefined);
   const lastKnownDigestRef = useRef<string | undefined>(undefined);
+  const pinRef = useRef<string | undefined>(undefined);
 
   const sleep = (ms = 2500) => new Promise((r) => setTimeout(r, ms));
 
@@ -84,8 +84,9 @@ export const Sign = () => {
       const encrypted = new Uint8Array(
         bcs.vector(bcs.u8()).parse(new Uint8Array(tx.inputs[0].value)),
       );
-      const resolvedPin = pin || (await requestDecryption(encrypted));
-      setPin(resolvedPin);
+      const resolvedPin =
+        pinRef.current || (await requestDecryption(encrypted));
+      pinRef.current = resolvedPin;
       lastKnownDigestRef.current = digest;
       const decrypted = await decryptBytes(encrypted, resolvedPin);
       return JSON.parse(new TextDecoder().decode(decrypted)) as Payload;
@@ -104,7 +105,7 @@ export const Sign = () => {
       signature: string;
     },
   ): Promise<void> => {
-    if (!ephemeralAddress || !ephemeralKeypair) return;
+    if (!ephemeralAddress || !ephemeralKeypair || !pinRef.current) return;
 
     const tx = new Transaction();
     tx.setSender(ephemeralAddress);
@@ -113,7 +114,7 @@ export const Sign = () => {
     const payload = new TextEncoder().encode(
       JSON.stringify({ intent, signature }),
     );
-    const encrypted = await encryptBytes(payload, pin);
+    const encrypted = await encryptBytes(payload, pinRef.current);
 
     tx.pure.vector('u8', fromBase64(encrypted));
     tx.transferObjects([tx.gas], ephemeralAddress);
@@ -135,10 +136,8 @@ export const Sign = () => {
       while (!stop) {
         try {
           const digest = await pollLatestTransaction();
-
           if (digest) {
             const payload = await handleIncomingDigest({ digest });
-
             switch (payload.intent) {
               case 'TransactionData':
                 {
@@ -174,18 +173,15 @@ export const Sign = () => {
         } catch (e) {
           console.error('❌ Error in monitorRequests:', e);
         }
-
         await sleep();
       }
     };
-
     monitorRequests();
-
     return () => {
       stop = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ephemeralAddress, keypair, pin]);
+  }, [ephemeralAddress, keypair]);
 
   useEffect(() => {
     if (!ephemeralAddress || !!keypair) return;
@@ -201,9 +197,10 @@ export const Sign = () => {
             parsed.secretKey,
           );
           setKeypair(ephemeralKeypair);
-          const { signature } = await ephemeralKeypair.signPersonalMessage(
-            fromBase64(payload.bytes),
-          );
+          const { signature } = await signPersonalMessage({
+            message: fromBase64(payload.bytes),
+            chain: `sui:${payload.network}`,
+          });
           await sendEncryptedResponse(ephemeralKeypair, {
             intent: payload.intent,
             signature,
