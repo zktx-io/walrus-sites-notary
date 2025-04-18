@@ -1,4 +1,5 @@
 import { useSignPersonalMessage, useSignTransaction } from '@mysten/dapp-kit';
+import { bcs } from '@mysten/sui/bcs';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { IntentScope } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
@@ -22,7 +23,7 @@ export const Sign = () => {
   const [searchParams] = useSearchParams();
   const { requestDecryption, pinModal } = usePinPrompt();
   const ephemeralAddress = searchParams.get('q');
-  const client = new SuiClient({ url: getFullnodeUrl('testnet') });
+  const client = new SuiClient({ url: getFullnodeUrl('devnet') });
 
   const { mutateAsync: signTransaction } = useSignTransaction();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
@@ -79,7 +80,9 @@ export const Sign = () => {
         throw new Error('Invalid transaction input structure.');
       }
 
-      const encrypted = new Uint8Array(tx.inputs[0].value);
+      const encrypted = new Uint8Array(
+        bcs.vector(bcs.u8()).parse(new Uint8Array(tx.inputs[0].value)),
+      );
       const resolvedPin = pin || (await requestDecryption(encrypted));
       setPin(resolvedPin);
       setLastKnownDigest(digest);
@@ -101,14 +104,14 @@ export const Sign = () => {
 
     const tx = new Transaction();
     tx.setSender(ephemeralAddress);
-    tx.setGasBudget(1000000);
+    tx.setGasBudget(10000000);
 
     const payload = new TextEncoder().encode(
       JSON.stringify({ intent, signature }),
     );
     const encrypted = await encryptBytes(payload, pin);
 
-    tx.pure.string(encrypted);
+    tx.pure.vector('u8', fromBase64(encrypted));
     tx.transferObjects([tx.gas], ephemeralAddress);
 
     await client.signAndExecuteTransaction({
