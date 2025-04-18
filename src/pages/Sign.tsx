@@ -308,35 +308,25 @@ export const Sign = () => {
                 </p>
               </div>
             </div>
+          ) : !deployedUrl ? (
+            <h2 className="text-2xl font-semibold text-white">{statusText}</h2>
           ) : (
-            <h2
-              className={`text-2xl font-semibold ${
-                statusText.includes('complete')
-                  ? 'text-green-400'
-                  : 'text-white'
-              }`}
-            >
-              {statusText}
-            </h2>
+            <div className="mt-8 text-center">
+              <h3 className="text-2xl font-semibold text-white">
+                Deployment complete
+              </h3>
+              <a
+                href={deployedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-block bg-gray-100/10 text-gray-300 border border-gray-500/20 px-4 py-2 rounded-md hover:bg-gray-100/20 hover:text-white transition"
+              >
+                View site
+              </a>
+            </div>
           )}
         </div>
       </div>
-
-      {deployedUrl && (
-        <div className="mt-8 text-center">
-          <h3 className="text-2xl font-semibold text-white">
-            Deployment complete
-          </h3>
-          <a
-            href={deployedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-block underline text-gray-300 hover:text-white"
-          >
-            View site
-          </a>
-        </div>
-      )}
 
       {pinModal}
 
