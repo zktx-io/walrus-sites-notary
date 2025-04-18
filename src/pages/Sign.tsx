@@ -5,6 +5,8 @@ import { IntentScope, Keypair } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { fromBase64 } from '@mysten/sui/utils';
+import { sha256 } from '@noble/hashes/sha256';
+import confetti from 'canvas-confetti';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -28,13 +30,17 @@ export const Sign = () => {
   const { mutateAsync: signTransaction } = useSignTransaction();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
   const [keypair, setKeypair] = useState<Ed25519Keypair | undefined>(undefined);
+  const [deployedUrl, setDeployedUrl] = useState<string | undefined>(undefined);
+  const [statusText, setStatusText] = useState<string>(
+    'Initializing signer...',
+  );
   const lastKnownDigestRef = useRef<string | undefined>(undefined);
   const pinRef = useRef<string | undefined>(undefined);
+  const hasFiredRef = useRef(false);
 
   const sleep = (ms = 2500) => new Promise((r) => setTimeout(r, ms));
 
   const pollLatestTransaction = async (): Promise<string | null> => {
-    console.info('🔁 Waiting for signing request...');
     if (!ephemeralAddress) return null;
 
     const { data } = await client.queryTransactionBlocks({
@@ -107,6 +113,8 @@ export const Sign = () => {
   ): Promise<void> => {
     if (!ephemeralAddress || !ephemeralKeypair || !pinRef.current) return;
 
+    setStatusText('Sending signed response...');
+
     const tx = new Transaction();
     tx.setSender(ephemeralAddress);
     tx.setGasBudget(10000000);
@@ -135,8 +143,10 @@ export const Sign = () => {
     const monitorRequests = async () => {
       while (!stop) {
         try {
+          setStatusText('Waiting for signing requests…');
           const digest = await pollLatestTransaction();
           if (digest) {
+            setStatusText('Signing request…');
             const payload = await handleIncomingDigest({ digest });
             switch (payload.intent) {
               case 'TransactionData':
@@ -155,7 +165,19 @@ export const Sign = () => {
                 break;
 
               case 'PersonalMessage':
-                {
+                if (
+                  new TextDecoder()
+                    .decode(fromBase64(payload.bytes))
+                    .startsWith('{"url":"')
+                ) {
+                  const { url } = JSON.parse(
+                    new TextDecoder().decode(fromBase64(payload.bytes)),
+                  );
+                  setDeployedUrl(url);
+                  setStatusText('Deployment complete.');
+                  stop = true;
+                  return;
+                } else {
                   const { signature } = await signPersonalMessage({
                     message: fromBase64(payload.bytes),
                     chain: `sui:${payload.network}`,
@@ -198,7 +220,7 @@ export const Sign = () => {
           );
           setKeypair(ephemeralKeypair);
           const { signature } = await signPersonalMessage({
-            message: fromBase64(payload.bytes),
+            message: sha256(fromBase64(payload.bytes)),
             chain: `sui:${payload.network}`,
           });
           await sendEncryptedResponse(ephemeralKeypair, {
@@ -214,6 +236,43 @@ export const Sign = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ephemeralAddress]);
 
+  useEffect(() => {
+    const fire = (particleRatio: number, opts: { [key: string]: number }) => {
+      confetti({
+        ...{
+          origin: { y: 0.7 },
+        },
+        ...opts,
+        particleCount: Math.floor(200 * particleRatio),
+      });
+    };
+    if (deployedUrl && !hasFiredRef.current) {
+      hasFiredRef.current = true;
+      fire(0.25, {
+        spread: 26,
+        startVelocity: 55,
+      });
+      fire(0.2, {
+        spread: 60,
+      });
+      fire(0.35, {
+        spread: 100,
+        decay: 0.91,
+        scalar: 0.8,
+      });
+      fire(0.1, {
+        spread: 120,
+        startVelocity: 25,
+        decay: 0.92,
+        scalar: 1.2,
+      });
+      fire(0.1, {
+        spread: 120,
+        startVelocity: 45,
+      });
+    }
+  }, [deployedUrl]);
+
   return (
     <div className="relative min-h-screen text-white overflow-hidden flex flex-col items-center justify-center px-4">
       <Navbar />
@@ -227,6 +286,24 @@ export const Sign = () => {
           Sign the request securely with your wallet.
         </p>
       </div>
+
+      <p className="mt-8 text-base font-medium text-white">{statusText}</p>
+
+      {deployedUrl && (
+        <div className="mt-8 text-center">
+          <h3 className="text-2xl font-semibold text-white">
+            Deployment complete
+          </h3>
+          <a
+            href={deployedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-block underline text-gray-300 hover:text-white"
+          >
+            View site
+          </a>
+        </div>
+      )}
 
       {pinModal}
 
