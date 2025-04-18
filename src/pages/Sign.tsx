@@ -1,11 +1,11 @@
 import { useSignPersonalMessage, useSignTransaction } from '@mysten/dapp-kit';
 import { bcs } from '@mysten/sui/bcs';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
-import { IntentScope } from '@mysten/sui/cryptography';
+import { IntentScope, Keypair } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { fromBase64 } from '@mysten/sui/utils';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { Navbar } from '../components/Navbar';
@@ -29,9 +29,7 @@ export const Sign = () => {
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
   const [pin, setPin] = useState<string>('');
   const [keypair, setKeypair] = useState<Ed25519Keypair | undefined>(undefined);
-  const [lastKnownDigest, setLastKnownDigest] = useState<string | undefined>(
-    undefined,
-  );
+  const lastKnownDigestRef = useRef<string | undefined>(undefined);
 
   const sleep = (ms = 2500) => new Promise((r) => setTimeout(r, ms));
 
@@ -51,7 +49,10 @@ export const Sign = () => {
 
     const [latest] = data;
 
-    if (!lastKnownDigest || latest.digest !== lastKnownDigest) {
+    if (
+      !lastKnownDigestRef.current ||
+      latest.digest !== lastKnownDigestRef.current
+    ) {
       return latest.digest;
     }
 
@@ -85,7 +86,7 @@ export const Sign = () => {
       );
       const resolvedPin = pin || (await requestDecryption(encrypted));
       setPin(resolvedPin);
-      setLastKnownDigest(digest);
+      lastKnownDigestRef.current = digest;
       const decrypted = await decryptBytes(encrypted, resolvedPin);
       return JSON.parse(new TextDecoder().decode(decrypted)) as Payload;
     } catch {
@@ -93,14 +94,17 @@ export const Sign = () => {
     }
   };
 
-  const sendEncryptedResponse = async ({
-    intent,
-    signature,
-  }: {
-    intent: IntentScope;
-    signature: string;
-  }): Promise<void> => {
-    if (!ephemeralAddress || !keypair) return;
+  const sendEncryptedResponse = async (
+    ephemeralKeypair: Keypair,
+    {
+      intent,
+      signature,
+    }: {
+      intent: IntentScope;
+      signature: string;
+    },
+  ): Promise<void> => {
+    if (!ephemeralAddress || !ephemeralKeypair) return;
 
     const tx = new Transaction();
     tx.setSender(ephemeralAddress);
@@ -114,10 +118,12 @@ export const Sign = () => {
     tx.pure.vector('u8', fromBase64(encrypted));
     tx.transferObjects([tx.gas], ephemeralAddress);
 
-    await client.signAndExecuteTransaction({
+    const { digest } = await client.signAndExecuteTransaction({
       transaction: tx,
-      signer: keypair,
+      signer: ephemeralKeypair,
     });
+    await client.waitForTransaction({ digest });
+    lastKnownDigestRef.current = digest;
   };
 
   useEffect(() => {
@@ -142,7 +148,7 @@ export const Sign = () => {
                     ).toJSON(),
                     chain: `sui:${payload.network}`,
                   });
-                  await sendEncryptedResponse({
+                  await sendEncryptedResponse(keypair, {
                     intent: payload.intent,
                     signature,
                   });
@@ -155,7 +161,7 @@ export const Sign = () => {
                     message: fromBase64(payload.bytes),
                     chain: `sui:${payload.network}`,
                   });
-                  await sendEncryptedResponse({
+                  await sendEncryptedResponse(keypair, {
                     intent: payload.intent,
                     signature,
                   });
@@ -169,7 +175,7 @@ export const Sign = () => {
           console.error('❌ Error in monitorRequests:', e);
         }
 
-        await new Promise((r) => setTimeout(r, 2500));
+        await sleep();
       }
     };
 
@@ -188,7 +194,20 @@ export const Sign = () => {
         const digest = await pollLatestTransaction();
         if (digest) {
           const payload = await handleIncomingDigest({ digest });
-          setKeypair(Ed25519Keypair.fromSecretKey(payload.bytes));
+          const parsed = JSON.parse(
+            new TextDecoder().decode(fromBase64(payload.bytes)),
+          );
+          const ephemeralKeypair = Ed25519Keypair.fromSecretKey(
+            parsed.secretKey,
+          );
+          setKeypair(ephemeralKeypair);
+          const { signature } = await ephemeralKeypair.signPersonalMessage(
+            fromBase64(payload.bytes),
+          );
+          await sendEncryptedResponse(ephemeralKeypair, {
+            intent: payload.intent,
+            signature,
+          });
         } else {
           await sleep();
         }
