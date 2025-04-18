@@ -1,4 +1,8 @@
-import { useSignPersonalMessage, useSignTransaction } from '@mysten/dapp-kit';
+import {
+  useSignPersonalMessage,
+  useSignTransaction,
+  useCurrentAccount,
+} from '@mysten/dapp-kit';
 import { bcs } from '@mysten/sui/bcs';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { IntentScope, Keypair } from '@mysten/sui/cryptography';
@@ -27,6 +31,7 @@ export const Sign = () => {
   const ephemeralAddress = searchParams.get('q');
   const client = new SuiClient({ url: getFullnodeUrl('devnet') });
 
+  const currentAccount = useCurrentAccount();
   const { mutateAsync: signTransaction } = useSignTransaction();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
   const [keypair, setKeypair] = useState<Ed25519Keypair | undefined>(undefined);
@@ -136,7 +141,7 @@ export const Sign = () => {
   };
 
   useEffect(() => {
-    if (!ephemeralAddress || !keypair) return;
+    if (!ephemeralAddress || !keypair || !currentAccount) return;
 
     let stop = false;
 
@@ -198,15 +203,22 @@ export const Sign = () => {
         await sleep();
       }
     };
+
     monitorRequests();
+
     return () => {
       stop = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ephemeralAddress, keypair]);
+  }, [ephemeralAddress, currentAccount, keypair]);
 
   useEffect(() => {
     if (!ephemeralAddress || !!keypair) return;
+
+    if (!currentAccount) {
+      return;
+    }
+
     const init = async () => {
       while (!keypair) {
         const digest = await pollLatestTransaction();
@@ -234,7 +246,7 @@ export const Sign = () => {
     };
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ephemeralAddress]);
+  }, [ephemeralAddress, currentAccount]);
 
   useEffect(() => {
     const fire = (particleRatio: number, opts: { [key: string]: number }) => {
@@ -285,9 +297,30 @@ export const Sign = () => {
         <p className="mt-4 text-lg text-gray-400">
           Sign the request securely with your wallet.
         </p>
-      </div>
 
-      <p className="mt-8 text-base font-medium text-white">{statusText}</p>
+        <div className="z-10 flex flex-col items-center text-center mt-20">
+          {!currentAccount ? (
+            <div className="flex items-center gap-2 text-yellow-400 bg-yellow-900/20 px-4 py-2 rounded-lg border border-yellow-400/30">
+              <div>
+                <h2 className="text-lg font-semibold">Wallet Not Connected</h2>
+                <p className="text-sm text-yellow-300 mt-1">
+                  Please connect your wallet to start signing.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <h2
+              className={`text-2xl font-semibold ${
+                statusText.includes('complete')
+                  ? 'text-green-400'
+                  : 'text-white'
+              }`}
+            >
+              {statusText}
+            </h2>
+          )}
+        </div>
+      </div>
 
       {deployedUrl && (
         <div className="mt-8 text-center">

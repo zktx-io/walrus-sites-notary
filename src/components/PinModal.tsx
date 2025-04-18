@@ -18,14 +18,25 @@ export const PinModal = ({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed z-50 top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 bg-[#0b0d14] border border-white/10 p-6 rounded-xl shadow-xl">
+        <Dialog.Overlay
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+          onClick={(e) => e.stopPropagation()}
+        />
+        <Dialog.Content
+          className="fixed z-50 top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 bg-[#0b0d14] border border-white/10 p-6 rounded-xl shadow-xl"
+          onInteractOutside={(e) => e.preventDefault()}
+        >
           <div className="flex justify-between items-center mb-4">
             <Dialog.Title className="text-xl font-semibold text-white">
               Enter PIN
             </Dialog.Title>
             <Dialog.Close asChild>
-              <button className="text-white hover:text-gray-300">
+              <button
+                className="text-white hover:text-gray-300"
+                tabIndex={-1}
+                data-close
+                type="button"
+              >
                 <X className="w-5 h-5" />
               </button>
             </Dialog.Close>
