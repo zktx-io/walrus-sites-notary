@@ -13,5 +13,6 @@
   "epochs": 10,
   "path": "./dist",
   "gas_budget": 100000000,
-  "write_retry_limit": 15
+  "write_retry_limit": 15,
+  "object_id": "0x28fa03eb93e9a78c08f4c381ebd7078abedfc376997635a0c0de46c8aae08ffa"
 }
