@@ -34,11 +34,11 @@ export const Sign = () => {
   const currentAccount = useCurrentAccount();
   const { mutateAsync: signTransaction } = useSignTransaction();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
-  const [keypair, setKeypair] = useState<Ed25519Keypair | undefined>(undefined);
   const [deployedUrl, setDeployedUrl] = useState<string | undefined>(undefined);
   const [statusText, setStatusText] = useState<string>(
     'Initializing signer...',
   );
+  const keypairRef = useRef<Ed25519Keypair | undefined>(undefined);
   const lastKnownDigestRef = useRef<string | undefined>(undefined);
   const pinRef = useRef<string | undefined>(undefined);
   const hasFiredRef = useRef(false);
@@ -87,13 +87,16 @@ export const Sign = () => {
         tx.kind !== 'ProgrammableTransaction' ||
         tx.inputs.length === 0 ||
         tx.inputs[0].type !== 'pure' ||
-        !Array.isArray(tx.inputs[0].value)
+        tx.inputs[1].type !== 'pure' ||
+        !Array.isArray(tx.inputs[0].value) ||
+        !Array.isArray(tx.inputs[1].value) ||
+        !bcs.Bool.parse(new Uint8Array(tx.inputs[0].value))
       ) {
         throw new Error('Invalid transaction input structure.');
       }
 
       const encrypted = new Uint8Array(
-        bcs.vector(bcs.u8()).parse(new Uint8Array(tx.inputs[0].value)),
+        bcs.vector(bcs.u8()).parse(new Uint8Array(tx.inputs[1].value)),
       );
       const resolvedPin =
         pinRef.current || (await requestDecryption(encrypted));
@@ -141,11 +144,11 @@ export const Sign = () => {
   };
 
   useEffect(() => {
-    if (!ephemeralAddress || !keypair || !currentAccount) return;
+    if (!ephemeralAddress || !keypairRef.current || !currentAccount) return;
 
     let stop = false;
 
-    const monitorRequests = async () => {
+    const monitorRequests = async (keypair: Ed25519Keypair) => {
       while (!stop) {
         try {
           setStatusText('Waiting for signing requests…');
@@ -204,23 +207,23 @@ export const Sign = () => {
       }
     };
 
-    monitorRequests();
+    monitorRequests(keypairRef.current);
 
     return () => {
       stop = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ephemeralAddress, currentAccount, keypair]);
+  }, [ephemeralAddress, currentAccount, keypairRef.current]);
 
   useEffect(() => {
-    if (!ephemeralAddress || !!keypair) return;
+    if (!ephemeralAddress || !!keypairRef.current) return;
 
     if (!currentAccount) {
       return;
     }
 
     const init = async () => {
-      while (!keypair) {
+      while (!keypairRef.current) {
         const digest = await pollLatestTransaction();
         if (digest) {
           const payload = await handleIncomingDigest({ digest });
@@ -230,7 +233,7 @@ export const Sign = () => {
           const ephemeralKeypair = Ed25519Keypair.fromSecretKey(
             parsed.secretKey,
           );
-          setKeypair(ephemeralKeypair);
+          keypairRef.current = ephemeralKeypair;
           const { signature } = await signPersonalMessage({
             message: sha256(fromBase64(payload.bytes)),
             chain: `sui:${payload.network}`,
