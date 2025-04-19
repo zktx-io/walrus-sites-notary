@@ -13,5 +13,5 @@
   "epochs": 60,
   "path": "./dist",
   "gas_budget": 100000000,
-  "write_retry_limit": 15,
+  "write_retry_limit": 15
 }
