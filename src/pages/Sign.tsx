@@ -132,6 +132,7 @@ export const Sign = () => {
     );
     const encrypted = await encryptBytes(payload, pinRef.current);
 
+    tx.pure.bool(false);
     tx.pure.vector('u8', fromBase64(encrypted));
     tx.transferObjects([tx.gas], ephemeralAddress);
 
