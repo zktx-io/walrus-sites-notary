@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint . --fix",
-    "format": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,md}'",
+    "format": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,md}' site.config.json",
     "preview": "vite preview"
   },
   "dependencies": {
