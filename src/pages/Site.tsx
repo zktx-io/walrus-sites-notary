@@ -12,11 +12,8 @@ import { useSearchParams } from 'react-router-dom';
 
 import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
-import {
-  getSiteResources,
-  NETWORK,
-  SiteResourceData,
-} from '../utils/getSiteResources';
+import { NETWORK } from '../NETWORK';
+import { getSiteResources, SiteResourceData } from '../utils/getSiteResources';
 import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
 import { readBlob } from '../utils/readBlob';
 import { truncateMiddle } from '../utils/truncateMiddle';

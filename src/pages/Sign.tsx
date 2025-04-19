@@ -289,7 +289,7 @@ export const Sign = () => {
     <div className="relative min-h-screen text-white overflow-hidden flex flex-col items-center justify-center px-4">
       <Navbar />
 
-      <div className="z-10 flex flex-col items-center text-center mt-24">
+      <div className="z-10 flex flex-col items-center text-center">
         <h2 className="text-5xl font-bold">Authenticate Deployment</h2>
         <p className="mt-4 text-lg text-gray-400">
           Prove authorship. Ensure integrity.

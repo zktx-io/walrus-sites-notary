@@ -7,7 +7,7 @@ import { Github, BookOpen, Info, Check, Wallet, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 
-import { NETWORK } from '../utils/getSiteResources';
+import { NETWORK } from '../NETWORK';
 
 export const Navbar = ({
   showInput = false,

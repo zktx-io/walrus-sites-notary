@@ -9,6 +9,8 @@ import {
 import { toBase64, toHex } from '@mysten/sui/utils';
 import { SuinsClient } from '@mysten/suins';
 
+import { NETWORK } from '../NETWORK';
+
 const OBJECTSIZE = 50;
 
 const bigintToBase64UrlLE = (num: string): string => {
@@ -144,8 +146,6 @@ export async function getAllObjects(
     };
   });
 }
-
-export const NETWORK: 'mainnet' | 'testnet' = 'testnet';
 
 export const getSiteResources = async (
   prefix: string,
