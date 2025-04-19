@@ -1,4 +1,4 @@
-import { NETWORK } from './getSiteResources';
+import { NETWORK } from '../NETWORK';
 
 export const readBlob = async (
   blobId: string,

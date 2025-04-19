@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Navbar } from '../components/Navbar';
-import { NETWORK } from '../utils/getSiteResources';
+import { NETWORK } from '../NETWORK';
 
 export const Home = () => {
   const navigate = useNavigate();
