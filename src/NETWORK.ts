@@ -1,1 +1,1 @@
-export const NETWORK: 'mainnet' | 'testnet' = 'mainnet';
+export const NETWORK: 'mainnet' | 'testnet' = 'testnet';
