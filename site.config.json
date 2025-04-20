@@ -1,6 +1,6 @@
 {
-  "network": "testnet",
-  "owner": "0xea016e020478a34bdb8e2a8400166e5d54a4132e747bf085c37ca71f3d46e3a0",
+  "network": "mainnet",
+  "owner": "0x54db5a65ded3365f3b4906c6822d95d78eee10ecbdd150bc58380e047a930189",
   "site_name": "walrus-sites-notary",
   "metadata": {
     "link": "https://notary.wal.app",
@@ -13,6 +13,5 @@
   "epochs": 10,
   "path": "./dist",
   "gas_budget": 100000000,
-  "write_retry_limit": 15,
-  "object_id": "0x28fa03eb93e9a78c08f4c381ebd7078abedfc376997635a0c0de46c8aae08ffa"
+  "write_retry_limit": 15
 }
