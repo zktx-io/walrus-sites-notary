@@ -12,7 +12,7 @@ export const readBlob = async (
   if (!response.ok) {
     throw new Error(`Failed to fetch blob: ${response.statusText}`);
   }
-  const data = await response.bytes();
+  const data = new Uint8Array(await response.arrayBuffer());
   if (range) {
     return data.slice(range.start, range.end);
   }
