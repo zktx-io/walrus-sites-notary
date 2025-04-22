@@ -9,7 +9,7 @@ import {
 import { toBase64, toHex } from '@mysten/sui/utils';
 import { SuinsClient } from '@mysten/suins';
 
-import { NETWORK } from '../NETWORK';
+import { loadSiteConfig } from './loadSiteConfig';
 
 const OBJECTSIZE = 50;
 
@@ -151,10 +151,12 @@ export const getSiteResources = async (
   prefix: string,
 ): Promise<SiteResourceData> => {
   try {
-    const suiClient = new SuiClient({ url: getFullnodeUrl(NETWORK) });
+    const config = await loadSiteConfig();
+    const network = config?.network || 'testnet';
+    const suiClient = new SuiClient({ url: getFullnodeUrl(network) });
     const suinsClient = new SuinsClient({
       client: suiClient,
-      network: NETWORK,
+      network: network,
     });
 
     let siteId = '';

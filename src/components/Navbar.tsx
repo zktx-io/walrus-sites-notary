@@ -3,43 +3,16 @@ import {
   useCurrentAccount,
   useDisconnectWallet,
 } from '@mysten/dapp-kit';
-import { Github, BookOpen, Info, Check, Wallet, LogOut } from 'lucide-react';
+import { Github, BookOpen, Info, Wallet, LogOut } from 'lucide-react';
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 
-import { NETWORK } from '../NETWORK';
+import { Search } from './Search';
 
-export const Navbar = ({
-  showInput = false,
-  prefix,
-}: {
-  showInput?: boolean;
-  prefix?: string;
-}) => {
+export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
   const currentAccount = useCurrentAccount();
   const { mutate: disconnect } = useDisconnectWallet();
   const [open, setOpen] = useState(false);
-  const [domain, setDomain] = useState<string>(
-    prefix
-      ? `${prefix}${NETWORK === 'mainnet' ? '.wal.app' : '.localhost:3000'}`
-      : 'notary.wal.app',
-  );
-  const [error, setError] = useState<boolean>(false);
-  const navigate = useNavigate();
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const url = `${NETWORK === 'mainnet' ? 'https' : 'http'}://${domain}`;
-    const match = url.match(
-      /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
-    );
-    if (!match) {
-      setError(true);
-      return;
-    }
-    setError(false);
-    navigate(`/site?q=${match[1]}`);
-  };
 
   return (
     <nav className="w-full h-16 px-4 bg-[#0b0d14] fixed top-0 z-30 backdrop-blur-md bg-black/20">
@@ -49,86 +22,51 @@ export const Navbar = ({
         </RouterLink>
 
         {showInput ? (
-          <form onSubmit={handleSubmit} className="flex items-center gap-2">
-            <span className="text-white select-none">{`${NETWORK === 'mainnet' ? 'https' : 'http'}://`}</span>
-            <input
-              type="text"
-              value={domain}
-              onChange={(e) => {
-                const url = `${NETWORK === 'mainnet' ? 'https' : 'http'}://${e.target.value}`;
-                const match = url.match(
-                  /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
-                );
-                setError(!match);
-                setDomain(e.target.value);
-              }}
-              placeholder="notary.wal.app"
-              className="flex-1 min-w-[200px] bg-transparent text-white placeholder-gray-400 focus:outline-none border-b border-gray-600 py-1"
-            />
-            <button
-              type="submit"
-              className={`bg-green-400 text-black rounded-full w-6 h-6 flex items-center justify-center transition-colors ${
-                error
-                  ? 'opacity-50 cursor-not-allowed pointer-events-none'
-                  : 'hover:bg-green-500 cursor-pointer'
-              }`}
-              aria-label="Verify"
-              disabled={error}
-            >
-              <Check className="w-4 h-4" />
-            </button>
-          </form>
+          <Search />
         ) : (
           <div className="flex items-center gap-4 text-sm text-gray-300">
-            <a
-              href="https://github.com/zktx-io/walrus-sites-provenance"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 hover:underline"
-            >
-              <Github className="w-4 h-4" />
-              GitHub
-            </a>
-            <a
-              href="https://docs.walrus.site"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 hover:underline"
-            >
-              <BookOpen className="w-4 h-4" />
-              Walrus
-            </a>
-            <a
-              href="https://docs.zktx.io"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 hover:underline"
-            >
-              <Info className="w-4 h-4" />
-              zktx.io
-            </a>
-            {currentAccount ? (
-              <button
-                className="p-2 rounded-full transition-colors hover:bg-white/10 cursor-pointer"
-                title={currentAccount.address}
-                onClick={() => disconnect()}
+            <div className="flex items-center gap-2 sm:gap-4 text-sm text-gray-300">
+              <a
+                href="https://github.com/zktx-io/walrus-sites-provenance"
+                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                title="GitHub"
               >
-                <LogOut className="w-5 h-5 text-white" />
-              </button>
-            ) : (
-              <ConnectModal
-                trigger={
-                  <button
-                    className="p-2 rounded-full transition-colors hover:bg-white/10 cursor-pointer"
-                    disabled={!!currentAccount}
-                  >
-                    <Wallet className="w-5 h-5 text-white" />
-                  </button>
-                }
-                open={open}
-                onOpenChange={(isOpen) => setOpen(isOpen)}
-              />
-            )}
+                <Github className="w-5 h-5" />
+              </a>
+              <a
+                href="https://docs.walrus.site"
+                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                title="Walrus Docs"
+              >
+                <BookOpen className="w-5 h-5" />
+              </a>
+              <a
+                href="https://docs.zktx.io"
+                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                title="zktx.io"
+              >
+                <Info className="w-5 h-5" />
+              </a>
+              {currentAccount ? (
+                <button
+                  className="p-2 rounded-full hover:bg-white/10 transition-colors text-white"
+                  title={currentAccount.address}
+                  onClick={() => disconnect()}
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              ) : (
+                <ConnectModal
+                  trigger={
+                    <button className="p-2 rounded-full hover:bg-white/10 transition-colors text-white">
+                      <Wallet className="w-5 h-5" />
+                    </button>
+                  }
+                  open={open}
+                  onOpenChange={(isOpen) => setOpen(isOpen)}
+                />
+              )}
+            </div>
           </div>
         )}
       </div>

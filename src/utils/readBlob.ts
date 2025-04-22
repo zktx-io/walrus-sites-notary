@@ -1,18 +1,19 @@
-import { NETWORK } from '../NETWORK';
+import { loadSiteConfig } from './loadSiteConfig';
 
 export const readBlob = async (
   blobId: string,
   range?: { start: number; end: number },
 ): Promise<Uint8Array> => {
+  const config = await loadSiteConfig();
   const AGGREGATOR =
-    NETWORK === 'mainnet'
+    (config ? config.network : 'testnet') === 'mainnet'
       ? 'https://aggregator.walrus-mainnet.walrus.space'
       : 'https://aggregator.walrus-testnet.walrus.space';
   const response = await fetch(`${AGGREGATOR}/v1/blobs/${blobId}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch blob: ${response.statusText}`);
   }
-  const data = await response.bytes();
+  const data = new Uint8Array(await response.arrayBuffer());
   if (range) {
     return data.slice(range.start, range.end);
   }
