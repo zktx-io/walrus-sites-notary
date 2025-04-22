@@ -1,9 +1,9 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Search as SearchIcon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { NETWORK } from '../NETWORK';
+import { loadSiteConfig } from '../utils/loadSiteConfig';
 
 const SearchModal = ({
   open,
@@ -13,12 +13,13 @@ const SearchModal = ({
   setOpen: (open: boolean) => void;
 }) => {
   const navigate = useNavigate();
+  const [network, setNetwork] = useState('testnet');
   const [input, setInput] = useState('');
   const [error, setError] = useState(false);
 
   const handleSearch = () => {
     const cleanedInput = input.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const protocol = NETWORK === 'mainnet' ? 'https' : 'http';
+    const protocol = network === 'mainnet' ? 'https' : 'http';
     const url = `${protocol}://${cleanedInput}`;
 
     const match = url.match(
@@ -34,6 +35,14 @@ const SearchModal = ({
     navigate(`/site?q=${match[1]}`);
     setOpen(false);
   };
+
+  useEffect(() => {
+    loadSiteConfig().then((config) => {
+      if (config) {
+        setNetwork(config.network);
+      }
+    });
+  }, []);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>

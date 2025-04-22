@@ -1,18 +1,19 @@
 import { Check } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Navbar } from '../components/Navbar';
-import { NETWORK } from '../NETWORK';
+import { loadSiteConfig } from '../utils/loadSiteConfig';
 
 export const Home = () => {
   const navigate = useNavigate();
+  const [network, setNetwork] = useState('testnet');
   const [domain, setDomain] = useState<string>('notary.wal.app');
   const [error, setError] = useState<string>('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const url = `${NETWORK === 'mainnet' ? 'https' : 'http'}://${domain}`;
+    const url = `${network === 'mainnet' ? 'https' : 'http'}://${domain}`;
     const match = url.match(
       /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
     );
@@ -26,6 +27,14 @@ export const Home = () => {
     navigate(`/site?q=${match[1]}`);
   };
 
+  useEffect(() => {
+    loadSiteConfig().then((config) => {
+      if (config) {
+        setNetwork(config.network);
+      }
+    });
+  }, []);
+
   return (
     <div className="relative min-h-screen text-white overflow-hidden flex flex-col items-center justify-center px-4">
       <Navbar />
@@ -38,12 +47,12 @@ export const Home = () => {
         <form onSubmit={handleSubmit} className="w-full max-w-2xl mt-6">
           <div className="p-[4px] rounded-full bg-gradient-to-r from-purple-500 via-blue-500 to-green-400">
             <div className="flex items-center bg-[#1a1a2e] rounded-full px-4 py-2">
-              <span className="text-white px-1 select-none">{`${NETWORK === 'mainnet' ? 'https' : 'http'}://`}</span>
+              <span className="text-white px-1 select-none">{`${network === 'mainnet' ? 'https' : 'http'}://`}</span>
               <input
                 type="text"
                 value={domain}
                 onChange={(e) => {
-                  const url = `${NETWORK === 'mainnet' ? 'https' : 'http'}://${e.target.value}`;
+                  const url = `${network === 'mainnet' ? 'https' : 'http'}://${e.target.value}`;
                   const match = url.match(
                     /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
                   );

@@ -13,8 +13,8 @@ import { useSearchParams } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
 import { ResourceTable } from '../components/ResourceTable';
-import { NETWORK } from '../NETWORK';
 import { getSiteResources, SiteResourceData } from '../utils/getSiteResources';
+import { loadSiteConfig } from '../utils/loadSiteConfig';
 import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
 import { readBlob } from '../utils/readBlob';
 import { truncateMiddle } from '../utils/truncateMiddle';
@@ -23,6 +23,7 @@ export const Site = () => {
   const [searchParams] = useSearchParams();
   const prefix = searchParams.get('q') || '';
 
+  const [network, setNetwork] = useState('testnet');
   const [loading, setLoading] = useState(true);
   const [provenance, setProvenance] = useState<JsonLPayload | undefined>(
     undefined,
@@ -79,6 +80,14 @@ export const Site = () => {
     fetchData();
   }, [prefix]);
 
+  useEffect(() => {
+    loadSiteConfig().then((config) => {
+      if (config) {
+        setNetwork(config.network);
+      }
+    });
+  }, []);
+
   return (
     <div className="relative min-h-screen text-white overflow-hidden bg-[#0b0d14]">
       <Navbar showInput={true} />
@@ -108,7 +117,7 @@ export const Site = () => {
                       'Site Object ID',
                       siteResources.id,
                       siteResources.id
-                        ? `https://suiscan.xyz/${NETWORK}/object/${siteResources.id}`
+                        ? `https://suiscan.xyz/${network}/object/${siteResources.id}`
                         : '',
                     ],
                     [
