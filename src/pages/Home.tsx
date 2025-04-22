@@ -52,16 +52,22 @@ export const Home = () => {
                 type="text"
                 value={domain}
                 onChange={(e) => {
-                  const url = `${network === 'mainnet' ? 'https' : 'http'}://${e.target.value}`;
+                  const raw = e.target.value;
+                  const cleaned = raw
+                    .replace(/^https?:\/\//, '')
+                    .replace(/\/$/, '');
+
+                  const url = `${network === 'mainnet' ? 'https' : 'http'}://${cleaned}`;
                   const match = url.match(
                     /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
                   );
+
                   setError(
                     match
                       ? ''
                       : 'Only `.wal.app` or `.localhost:3000` domains are supported. Please enter a valid address.',
                   );
-                  setDomain(e.target.value);
+                  setDomain(cleaned);
                 }}
                 placeholder="notary.wal.app"
                 className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none py-2"
