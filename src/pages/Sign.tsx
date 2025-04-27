@@ -8,7 +8,7 @@ import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { IntentScope, Keypair } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64 } from '@mysten/sui/utils';
+import { fromBase64, toBase64 } from '@mysten/sui/utils';
 import { sha256 } from '@noble/hashes/sha256';
 import confetti from 'canvas-confetti';
 import { useEffect, useRef, useState } from 'react';
@@ -236,7 +236,9 @@ export const Sign = () => {
           );
           keypairRef.current = ephemeralKeypair;
           const { signature } = await signPersonalMessage({
-            message: sha256(fromBase64(payload.bytes)),
+            message: new TextEncoder().encode(
+              toBase64(sha256(fromBase64(payload.bytes))),
+            ),
             chain: `sui:${payload.network}`,
           });
           await sendEncryptedResponse(ephemeralKeypair, {
