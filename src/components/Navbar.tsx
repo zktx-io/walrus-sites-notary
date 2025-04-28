@@ -22,7 +22,49 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
         </RouterLink>
 
         {showInput ? (
-          <Search />
+          <div className="flex items-center gap-4 text-sm text-gray-300">
+            <Search />
+            <a
+              href="https://github.com/zktx-io/walrus-sites-provenance"
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              title="GitHub"
+            >
+              <Github className="w-5 h-5" />
+            </a>
+            <a
+              href="https://docs.walrus.site"
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              title="Walrus Docs"
+            >
+              <BookOpen className="w-5 h-5" />
+            </a>
+            <a
+              href="https://docs.zktx.io"
+              className="p-2 rounded-full hover:bg-white/10 transition-colors"
+              title="zktx.io"
+            >
+              <Info className="w-5 h-5" />
+            </a>
+            {currentAccount ? (
+              <button
+                className="p-2 rounded-full hover:bg-white/10 transition-colors text-white"
+                title={currentAccount.address}
+                onClick={() => disconnect()}
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            ) : (
+              <ConnectModal
+                trigger={
+                  <button className="p-2 rounded-full hover:bg-white/10 transition-colors text-white">
+                    <Wallet className="w-5 h-5" />
+                  </button>
+                }
+                open={open}
+                onOpenChange={(isOpen) => setOpen(isOpen)}
+              />
+            )}
+          </div>
         ) : (
           <div className="flex items-center gap-4 text-sm text-gray-300">
             <div className="flex items-center gap-2 sm:gap-4 text-sm text-gray-300">
