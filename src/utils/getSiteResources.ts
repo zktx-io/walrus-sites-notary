@@ -196,11 +196,21 @@ export const getSiteResources = async (
     });
 
     resources.sort((a, b) => {
-      return a.path === '/.well-known/walrus-sites.intoto.jsonl'
-        ? -1
-        : b.path === '/.well-known/walrus-sites.intoto.jsonl'
-          ? 1
-          : 0;
+      const priority = (path: string) => {
+        if (path === '/.well-known/walrus-sites.intoto.jsonl') return 0;
+        if (path === '/.well-known/site.config.json') return 1;
+        if (path.startsWith('/.well-known/')) return 2;
+        return 3;
+      };
+
+      const aPriority = priority(a.path);
+      const bPriority = priority(b.path);
+
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+
+      return a.path.localeCompare(b.path);
     });
 
     return {
