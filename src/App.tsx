@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import '@mysten/dapp-kit/dist/index.css';
 
 import { Home } from './pages/Home';
+import { NotFound } from './pages/NotFound';
 import { Sign } from './pages/Sign';
 import { Site } from './pages/Site';
 
@@ -28,6 +29,8 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/site" element={<Site />} />
               <Route path="/Sign" element={<Sign />} />
+              <Route path="/404.html" element={<NotFound />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </WalletProvider>
