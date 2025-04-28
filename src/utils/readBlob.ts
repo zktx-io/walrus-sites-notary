@@ -15,7 +15,7 @@ export const readBlob = async (
   }
   const data = new Uint8Array(await response.arrayBuffer());
   if (range) {
-    return data.slice(range.start, range.end);
+    return data.slice(range.start, range.end + 1);
   }
   return data;
 };

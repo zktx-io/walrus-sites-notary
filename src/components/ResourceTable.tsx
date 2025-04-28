@@ -26,13 +26,22 @@ export const ResourceTable = ({
   const getVerificationStatus = (res: {
     path: string;
     blobHash: string;
-  }): 'Verified' | 'Not verified' | 'Unknown' | 'Provenance file' => {
+  }):
+    | 'Verified'
+    | 'Not verified'
+    | 'Unknown'
+    | 'Site config file'
+    | 'Provenance file' => {
     if (!provenance) {
       return 'Unknown';
     }
 
     if (res.path === '/.well-known/walrus-sites.intoto.jsonl') {
       return 'Provenance file';
+    }
+
+    if (res.path === '/.well-known/site.config.json') {
+      return 'Site config file';
     }
 
     const match = provenance.subject.some(
@@ -96,6 +105,9 @@ export const ResourceTable = ({
                   )}
                   {status === 'Unknown' && (
                     <span className="text-gray-500 italic">{status}</span>
+                  )}
+                  {status === 'Site config file' && (
+                    <span className="text-gray-400 italic">{status}</span>
                   )}
                   {status === 'Provenance file' && (
                     <span className="text-gray-400 italic">{status}</span>
