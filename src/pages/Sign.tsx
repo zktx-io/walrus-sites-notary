@@ -244,17 +244,21 @@ export const Sign = () => {
             const ephemeralKeypair = Ed25519Keypair.fromSecretKey(
               parsed.secretKey,
             );
+
             keypairRef.current = ephemeralKeypair;
-            const { signature } = await signPersonalMessage({
-              message: new TextEncoder().encode(
-                toBase64(sha256(fromBase64(payload.bytes))),
-              ),
-              chain: `sui:${payload.network}`,
-            });
-            await sendEncryptedResponse(ephemeralKeypair, {
-              intent: payload.intent,
-              signature,
-            });
+
+            if (data.length === 1) {
+              const { signature } = await signPersonalMessage({
+                message: new TextEncoder().encode(
+                  toBase64(sha256(fromBase64(payload.bytes))),
+                ),
+                chain: `sui:${payload.network}`,
+              });
+              await sendEncryptedResponse(ephemeralKeypair, {
+                intent: payload.intent,
+                signature,
+              });
+            }
           } else {
             await sleep();
           }
