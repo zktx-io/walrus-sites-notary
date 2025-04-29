@@ -1,6 +1,6 @@
 # 🕵️‍♀️ Notary for Walrus Sites
 
-> **Verify your Walrus Site with cryptographic provenance**
+> **Verify your Walrus Sites with cryptographic provenance**
 
 [**notary.wal.app**](https://notary.wal.app) is a verification frontend for [Walrus Sites](https://docs.wal.app/walrus-sites/intro.html).  
 It reads the on-chain site object and checks whether it includes a valid `.intoto.jsonl` provenance file for all deployed resources.
