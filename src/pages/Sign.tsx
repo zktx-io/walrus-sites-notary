@@ -258,6 +258,9 @@ export const Sign = () => {
                 intent: payload.intent,
                 signature,
               });
+            } else {
+              setStatusText('Waiting for signing requests…');
+              lastKnownDigestRef.current = data[1].digest;
             }
           } else {
             await sleep();
