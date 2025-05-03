@@ -14,5 +14,5 @@
   "path": "./dist",
   "gas_budget": 100000000,
   "write_retry_limit": 15,
-  "object_id": "0xfffd7c7704c22cc9e574cc13afe181c2f013a2c18456b9e97e7637fdfe7fa1bf"
+  "site_obj_id": "0xfffd7c7704c22cc9e574cc13afe181c2f013a2c18456b9e97e7637fdfe7fa1bf"
 }
