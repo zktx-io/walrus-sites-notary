@@ -87,22 +87,50 @@ export const Sign = () => {
         tx.kind !== 'ProgrammableTransaction' ||
         tx.inputs.length === 0 ||
         tx.inputs[0].type !== 'pure' ||
-        tx.inputs[1].type !== 'pure' ||
-        !Array.isArray(tx.inputs[0].value) ||
-        !Array.isArray(tx.inputs[1].value) ||
-        !bcs.Bool.parse(new Uint8Array(tx.inputs[0].value))
+        !Array.isArray(tx.inputs[0].value)
       ) {
         throw new Error('Invalid transaction input structure.');
       }
 
-      const encrypted = new Uint8Array(
-        bcs.vector(bcs.u8()).parse(new Uint8Array(tx.inputs[1].value)),
+      if (!bcs.Bool.parse(new Uint8Array(tx.inputs[0].value))) {
+        throw new Error('self signed transaction not allowed');
+      }
+
+      const encryptedChunks: Uint8Array[] = tx.inputs
+        .slice(1)
+        .filter(
+          (input): input is { type: 'pure'; value: number[] } =>
+            input.type === 'pure' &&
+            typeof input === 'object' &&
+            'value' in input &&
+            Array.isArray((input as { value?: unknown }).value),
+        )
+        .map((input) => new Uint8Array(input.value));
+
+      if (encryptedChunks.length < 1) {
+        throw new Error('Invalid encrypted structure or missing flag.');
+      }
+      const parsedChunks: Uint8Array[] = encryptedChunks.map(
+        (chunk) => new Uint8Array(bcs.vector(bcs.u8()).parse(chunk)),
       );
+
+      const totalLength = parsedChunks.reduce(
+        (sum, chunk) => sum + chunk.length,
+        0,
+      );
+      const fullEncrypted = new Uint8Array(totalLength);
+
+      let offset = 0;
+      for (const chunk of parsedChunks) {
+        fullEncrypted.set(chunk, offset);
+        offset += chunk.length;
+      }
+
       const resolvedPin =
-        pinRef.current || (await requestDecryption(encrypted));
+        pinRef.current || (await requestDecryption(fullEncrypted));
       pinRef.current = resolvedPin;
       lastKnownDigestRef.current = digest;
-      const decrypted = await decryptBytes(encrypted, resolvedPin);
+      const decrypted = await decryptBytes(fullEncrypted, resolvedPin);
       return JSON.parse(new TextDecoder().decode(decrypted)) as Payload;
     } catch {
       throw new Error(`❌ Error while handling digest: ${digest}`);
