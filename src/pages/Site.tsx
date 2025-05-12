@@ -10,6 +10,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
 import { ResourceTable } from '../components/ResourceTable';
@@ -90,6 +91,7 @@ export const Site = () => {
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden bg-[#0b0d14]">
+      <BackgroundFx />
       <Navbar showInput={true} />
 
       {prefix ? (
@@ -206,13 +208,6 @@ export const Site = () => {
           </p>
         </div>
       )}
-
-      <img
-        src="/globe_big.png"
-        alt="Globe"
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[1200px] z-0 pointer-events-none"
-        loading="lazy"
-      />
     </div>
   );
 };

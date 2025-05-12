@@ -2,6 +2,7 @@ import { Check } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
 
 export const Home = () => {
@@ -41,6 +42,7 @@ export const Home = () => {
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden flex flex-col items-center justify-center px-4">
+      <BackgroundFx />
       <Navbar />
 
       <div className="z-10 flex flex-col items-center text-center">
@@ -119,13 +121,6 @@ export const Home = () => {
           ) : null}
         </div>
       </div>
-
-      <img
-        src="/globe_big.png"
-        alt="Globe"
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[1200px] z-0 pointer-events-none"
-        loading="lazy"
-      />
     </div>
   );
 };
