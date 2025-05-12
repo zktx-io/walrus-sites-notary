@@ -4,8 +4,10 @@ import { JsonLPayload } from '../utils/parseJsonl';
 
 export const ProvenanceCard = ({
   provenance,
+  isFullyVerified,
 }: {
   provenance?: JsonLPayload;
+  isFullyVerified: boolean;
 }) => {
   if (!provenance) {
     return (
@@ -13,6 +15,17 @@ export const ProvenanceCard = ({
         <div className="flex items-center gap-2 text-yellow-400 font-medium">
           <AlertTriangle className="w-5 h-5" />
           Provenance information unavailable
+        </div>
+      </div>
+    );
+  }
+
+  if (!isFullyVerified) {
+    return (
+      <div className="p-6 rounded-lg mb-8 text-sm bg-white/3 backdrop-blur-md border border-white/5">
+        <div className="flex items-center gap-2 text-yellow-400 font-medium">
+          <AlertTriangle className="w-5 h-5" />
+          Partial verification — some files are unverified
         </div>
       </div>
     );

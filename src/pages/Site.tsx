@@ -20,6 +20,23 @@ import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
 import { readBlob } from '../utils/readBlob';
 import { truncateMiddle } from '../utils/truncateMiddle';
 
+const isFullyVerified = (
+  provenance: JsonLPayload | undefined,
+  resources: SiteResourceData['resources'],
+): boolean => {
+  if (!provenance) return false;
+
+  return resources
+    .filter((res) => !res.path.startsWith('/.well-known/'))
+    .every((res) =>
+      provenance.subject.some(
+        (s) =>
+          (s.name.startsWith('/') ? s.name : `/${s.name}`) === res.path &&
+          s.digest.sha256 === res.blobHash,
+      ),
+    );
+};
+
 export const Site = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
@@ -110,7 +127,13 @@ export const Site = () => {
                   </div>
                 </h1>
 
-                <ProvenanceCard provenance={provenance} />
+                <ProvenanceCard
+                  provenance={provenance}
+                  isFullyVerified={isFullyVerified(
+                    provenance,
+                    siteResources.resources,
+                  )}
+                />
 
                 <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
                   {[
