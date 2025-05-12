@@ -22,7 +22,7 @@ import { truncateMiddle } from '../utils/truncateMiddle';
 
 export const Site = () => {
   const [searchParams] = useSearchParams();
-  const prefix = searchParams.get('q') || '';
+  const query = searchParams.get('q') || '';
 
   const [network, setNetwork] = useState('testnet');
   const [loading, setLoading] = useState(true);
@@ -54,14 +54,14 @@ export const Site = () => {
       resources: [],
     });
 
-    if (!prefix) {
+    if (!query) {
       setLoading(false);
       return;
     }
 
     const fetchData = async () => {
       try {
-        const siteData = await getSiteResources(prefix);
+        const siteData = await getSiteResources(query);
         setSiteResources(siteData);
 
         const jsonl = siteData.resources.find(
@@ -79,7 +79,7 @@ export const Site = () => {
     };
 
     fetchData();
-  }, [prefix]);
+  }, [query]);
 
   useEffect(() => {
     loadSiteConfig().then((config) => {
@@ -94,7 +94,7 @@ export const Site = () => {
       <BackgroundFx />
       <Navbar showInput={true} />
 
-      {prefix ? (
+      {query ? (
         <div className="flex justify-center items-center px-4 pt-[88px] pb-12">
           <div className="z-10 max-w-4xl w-full">
             {loading ? (
@@ -106,7 +106,7 @@ export const Site = () => {
                 <h1 className="text-3xl font-bold mb-4 text-center">
                   <div>Verification Result for</div>
                   <div className="text-green-400">
-                    {truncateMiddle(prefix, 20)}.wal.app
+                    {truncateMiddle(query, 20)}.wal.app
                   </div>
                 </h1>
 
