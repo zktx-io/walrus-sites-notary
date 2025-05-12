@@ -39,15 +39,20 @@ export const BackgroundFx = () => {
 
     const trails: { x: number; y: number; char: string; opacity: number }[] =
       [];
+    let tick = 0;
+
+    const hueBase = 160;
+    const hueRange = 40;
 
     const draw = () => {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.font = `${fontSize}px monospace`;
 
       for (let i = trails.length - 1; i >= 0; i--) {
         const trail = trails[i];
-        ctx.fillStyle = `rgba(0, 255, 0, ${trail.opacity})`;
+        const hue = (hueBase - hueRange / 2 + ((trail.x * 3) % hueRange)) % 360;
+        ctx.fillStyle = `hsla(${hue}, 100%, 60%, ${trail.opacity})`;
         ctx.fillText(trail.char, trail.x * fontSize, trail.y * fontSize);
         trail.opacity -= 0.015;
         if (trail.opacity <= 0) trails.splice(i, 1);
@@ -82,14 +87,14 @@ export const BackgroundFx = () => {
           if (step < word.length) {
             const chY = wordY + step;
             const ch = word[step];
-            ctx.fillStyle = 'rgba(0, 255, 255, 0.8)';
-            ctx.font = `${fontSize}px monospace`;
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.9)';
+            ctx.font = `bold ${fontSize}px monospace`;
             ctx.fillText(ch, x * fontSize, chY * fontSize);
             trails.push({ x, y: chY, char: ch, opacity: 0.5 });
             spec.step++;
             skipRandom = true;
           } else if (holdFrames > 0) {
-            ctx.fillStyle = 'rgba(0, 255, 255, 0.8)';
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.9)';
             ctx.font = `bold ${fontSize}px monospace`;
             for (let j = 0; j < word.length; j++) {
               const chY = wordY + j;
@@ -108,7 +113,10 @@ export const BackgroundFx = () => {
 
         if (!skipRandom) {
           const char = chars[Math.floor(Math.random() * chars.length)];
-          ctx.fillStyle = `hsl(${(x / cols) * 360}, 100%, 60%)`;
+          const hue =
+            (hueBase - hueRange / 2 + ((x * 3 + tick) % hueRange)) % 360;
+          ctx.fillStyle = `hsl(${hue}, 100%, 70%)`;
+          ctx.font = `${fontSize}px monospace`;
           ctx.fillText(char, x * fontSize, y * fontSize);
           trails.push({ x, y, char, opacity: 0.4 });
         }
@@ -116,6 +124,8 @@ export const BackgroundFx = () => {
         drops[i] =
           y * fontSize > canvas.height && Math.random() > 0.975 ? 0 : y + 1;
       }
+
+      tick += 4;
     };
 
     const interval = setInterval(draw, 50);
