@@ -1,9 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Search as SearchIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-import { loadSiteConfig } from '../utils/loadSiteConfig';
 
 const SearchModal = ({
   open,
@@ -13,42 +11,40 @@ const SearchModal = ({
   setOpen: (open: boolean) => void;
 }) => {
   const navigate = useNavigate();
-  const [network, setNetwork] = useState('testnet');
   const [input, setInput] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState('');
+
+  const cleanedInput = input
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/$/, '');
+
+  const isWalApp = /^([a-z0-9-]+)\.(wal\.app|localhost:3000)?$/i.test(
+    cleanedInput,
+  );
+  const isMvrPath = /^@[\w.-]+\/[\w.-]+$/i.test(input.trim());
 
   const handleSearch = () => {
-    const cleanedInput = input.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const protocol = network === 'mainnet' ? 'https' : 'http';
-    const url = `${protocol}://${cleanedInput}`;
-
-    const match = url.match(
-      /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
-    );
-
-    if (!match) {
-      setError(true);
-      return;
+    if (isWalApp) {
+      const subdomain = cleanedInput.split('.')[0];
+      navigate(`/site?q=${subdomain}`);
+      setOpen(false);
+    } else if (isMvrPath) {
+      const encoded = encodeURIComponent(input.trim());
+      navigate(`/mvr?q=${encoded}`);
+      setOpen(false);
+    } else {
+      setError(
+        'Enter a valid `.wal.app` URL or MVR path like `@name/package`.',
+      );
     }
-
-    setError(false);
-    navigate(`/site?q=${match[1]}`);
-    setOpen(false);
   };
-
-  useEffect(() => {
-    loadSiteConfig().then((config) => {
-      if (config) {
-        setNetwork(config.network);
-      }
-    });
-  }, []);
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md bg-[#0b0d14] border border-white/10 p-6 rounded-xl shadow-xl">
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-1001" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-1002 w-full max-w-md bg-[#0b0d14] border border-white/10 p-6 rounded-xl shadow-xl">
           <div className="flex justify-between items-center mb-4">
             <Dialog.Title className="text-xl font-semibold text-white">
               Site Search
@@ -66,25 +62,42 @@ const SearchModal = ({
           <input
             autoFocus
             type="text"
-            placeholder="Search wal.app subdomain..."
+            placeholder="e.g., notary.wal.app or @name/package"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setInput(val);
+              setError('');
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSearch();
-              }
+              if (e.key === 'Enter') handleSearch();
             }}
             className="w-full px-3 py-2 rounded-md bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
-          {error && (
-            <p className="text-sm text-red-500 mt-2">
-              Invalid wal.app or localhost domain.
-            </p>
-          )}
+          <div className="min-h-[24px] mt-2">
+            {error ? (
+              <p className="text-sm text-red-500">{error}</p>
+            ) : input.trim() ? (
+              isMvrPath ? (
+                <p className="text-sm text-green-400">
+                  MVR package will be verified.
+                </p>
+              ) : isWalApp ? (
+                <p className="text-sm text-green-400">
+                  Walrus Site will be verified.
+                </p>
+              ) : null
+            ) : null}
+          </div>
 
           <button
             onClick={handleSearch}
-            className="mt-4 w-full bg-green-500 hover:bg-green-600 text-black font-semibold py-2 rounded-md transition"
+            disabled={!input.trim() || (!isWalApp && !isMvrPath)}
+            className={`w-full bg-green-500 text-black font-semibold py-2 rounded-md transition ${
+              !input.trim() || (!isWalApp && !isMvrPath)
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-green-600'
+            }`}
           >
             Verify
           </button>

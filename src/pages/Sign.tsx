@@ -14,6 +14,7 @@ import confetti from 'canvas-confetti';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
 import { decryptBytes, encryptBytes } from '../utils/gitSigner';
 import { usePinPrompt } from '../utils/usePinPrompt';
@@ -339,6 +340,7 @@ export const Sign = () => {
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden flex flex-col items-center justify-center px-4">
+      <BackgroundFx />
       <Navbar />
 
       <div className="z-10 flex flex-col items-center text-center">
@@ -381,13 +383,6 @@ export const Sign = () => {
       </div>
 
       {pinModal}
-
-      <img
-        src="/globe_big.png"
-        alt="Globe"
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[1200px] z-0 pointer-events-none"
-        loading="lazy"
-      />
     </div>
   );
 };

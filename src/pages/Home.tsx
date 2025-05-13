@@ -1,42 +1,48 @@
 import { Check } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
-import { loadSiteConfig } from '../utils/loadSiteConfig';
 
 export const Home = () => {
   const navigate = useNavigate();
-  const [network, setNetwork] = useState('testnet');
-  const [domain, setDomain] = useState<string>('notary.wal.app');
+  const [inputValue, setInputValue] = useState<string>('');
   const [error, setError] = useState<string>('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const url = `${network === 'mainnet' ? 'https' : 'http'}://${domain}`;
-    const match = url.match(
-      /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
-    );
-    if (!match) {
-      setError(
-        'Only `.wal.app` or `.localhost:3000` domains are supported. Please enter a valid address.',
-      );
-      return;
-    }
-    setError('');
-    navigate(`/site?q=${match[1]}`);
-  };
+    const trimmed = inputValue.trim();
 
-  useEffect(() => {
-    loadSiteConfig().then((config) => {
-      if (config) {
-        setNetwork(config.network);
-      }
-    });
-  }, []);
+    const cleanedForCheck = trimmed
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '');
+
+    // Check if it's a valid wal.app URL
+    const isWalApp = /^([a-z0-9-]+)\.(wal\.app|localhost:3000)?$/i.test(
+      cleanedForCheck,
+    );
+    // Check if it's an MVR path like @name/package
+    const isMvrPath = /^@[\w.-]+\/[\w.-]+$/i.test(trimmed);
+
+    if (isWalApp) {
+      const subdomain = trimmed.split('.')[0];
+      setError('');
+      navigate(`/site?q=${subdomain}`);
+    } else if (isMvrPath) {
+      const encoded = encodeURIComponent(trimmed);
+      setError('');
+      navigate(`/mvr?q=${encoded}`);
+    } else {
+      setError(
+        'Enter a valid `.wal.app` URL or MVR path like `@name/package`.',
+      );
+    }
+  };
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden flex flex-col items-center justify-center px-4">
+      <BackgroundFx />
       <Navbar />
 
       <div className="z-10 flex flex-col items-center text-center">
@@ -47,57 +53,74 @@ export const Home = () => {
         <form onSubmit={handleSubmit} className="w-full max-w-2xl mt-6">
           <div className="p-[4px] rounded-full bg-gradient-to-r from-purple-500 via-blue-500 to-green-400">
             <div className="flex items-center bg-[#1a1a2e] rounded-full px-4 py-2">
-              <span className="text-white px-1 select-none">{`${network === 'mainnet' ? 'https' : 'http'}://`}</span>
               <input
                 type="text"
-                value={domain}
+                value={inputValue}
                 onChange={(e) => {
                   const raw = e.target.value;
-                  const cleaned = raw
+                  setInputValue(raw);
+
+                  if (raw.trim() === '') {
+                    setError('');
+                    return;
+                  }
+
+                  const cleanedForCheck = raw
                     .replace(/^https?:\/\//, '')
                     .replace(/\/$/, '');
+                  const isWalApp =
+                    /^([a-z0-9-]+)\.(wal\.app|localhost:3000)?$/i.test(
+                      cleanedForCheck,
+                    );
+                  const isMvrPath = /^@[\w.-]+\/[\w.-]+$/i.test(raw);
 
-                  const url = `${network === 'mainnet' ? 'https' : 'http'}://${cleaned}`;
-                  const match = url.match(
-                    /^https?:\/\/([a-z0-9-]+)\.(wal\.app|localhost:3000)$/i,
-                  );
-
-                  setError(
-                    match
-                      ? ''
-                      : 'Only `.wal.app` or `.localhost:3000` domains are supported. Please enter a valid address.',
-                  );
-                  setDomain(cleaned);
+                  if (isWalApp || isMvrPath) {
+                    setError('');
+                  } else {
+                    setError('Enter a valid .wal.app URL or an MVR path.');
+                  }
                 }}
-                placeholder="notary.wal.app"
+                placeholder="e.g., notary.wal.app or @name/package"
                 className="flex-1 bg-transparent text-white placeholder-gray-400 focus:outline-none py-2"
               />
               <button
                 type="submit"
                 className={`bg-green-400 text-black rounded-full w-10 h-10 flex items-center justify-center transition-colors ${
-                  error
+                  error || !inputValue.trim()
                     ? 'opacity-50 cursor-not-allowed pointer-events-none'
                     : 'hover:bg-green-500 cursor-pointer'
                 }`}
                 aria-label="Verify"
-                disabled={!!error}
+                disabled={!!error || !inputValue.trim()}
               >
                 <Check />
               </button>
             </div>
           </div>
         </form>
-        <div className="min-h-[24px] mt-2">
-          {error && <p className="text-sm text-red-500">{error}</p>}
+        <div className="min-h-[24px] mt-2 text-center">
+          {error ? (
+            <p className="text-sm text-red-500 break-words whitespace-pre-wrap w-full">
+              {error}
+            </p>
+          ) : inputValue ? (
+            /^@[\w.-]+\/[\w.-]+$/.test(inputValue.trim()) ? (
+              <p className="text-sm text-green-400">
+                Move package from MVR will be verified.
+              </p>
+            ) : /^([a-z0-9-]+)\.(wal\.app|localhost)(?::(3000|5173))?$/i.test(
+                inputValue
+                  .trim()
+                  .replace(/^https?:\/\//, '')
+                  .replace(/\/$/, ''),
+              ) ? (
+              <p className="text-sm text-green-400">
+                Walrus Site will be verified.
+              </p>
+            ) : null
+          ) : null}
         </div>
       </div>
-
-      <img
-        src="/globe_big.png"
-        alt="Globe"
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[1200px] z-0 pointer-events-none"
-        loading="lazy"
-      />
     </div>
   );
 };

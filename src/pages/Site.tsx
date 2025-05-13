@@ -10,6 +10,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
 import { ResourceTable } from '../components/ResourceTable';
@@ -19,9 +20,26 @@ import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
 import { readBlob } from '../utils/readBlob';
 import { truncateMiddle } from '../utils/truncateMiddle';
 
+const isFullyVerified = (
+  provenance: JsonLPayload | undefined,
+  resources: SiteResourceData['resources'],
+): boolean => {
+  if (!provenance) return false;
+
+  return resources
+    .filter((res) => !res.path.startsWith('/.well-known/'))
+    .every((res) =>
+      provenance.subject.some(
+        (s) =>
+          (s.name.startsWith('/') ? s.name : `/${s.name}`) === res.path &&
+          s.digest.sha256 === res.blobHash,
+      ),
+    );
+};
+
 export const Site = () => {
   const [searchParams] = useSearchParams();
-  const prefix = searchParams.get('q') || '';
+  const query = searchParams.get('q') || '';
 
   const [network, setNetwork] = useState('testnet');
   const [loading, setLoading] = useState(true);
@@ -53,14 +71,14 @@ export const Site = () => {
       resources: [],
     });
 
-    if (!prefix) {
+    if (!query) {
       setLoading(false);
       return;
     }
 
     const fetchData = async () => {
       try {
-        const siteData = await getSiteResources(prefix);
+        const siteData = await getSiteResources(query);
         setSiteResources(siteData);
 
         const jsonl = siteData.resources.find(
@@ -78,7 +96,7 @@ export const Site = () => {
     };
 
     fetchData();
-  }, [prefix]);
+  }, [query]);
 
   useEffect(() => {
     loadSiteConfig().then((config) => {
@@ -90,9 +108,10 @@ export const Site = () => {
 
   return (
     <div className="relative min-h-screen text-white overflow-hidden bg-[#0b0d14]">
+      <BackgroundFx />
       <Navbar showInput={true} />
 
-      {prefix ? (
+      {query ? (
         <div className="flex justify-center items-center px-4 pt-[88px] pb-12">
           <div className="z-10 max-w-4xl w-full">
             {loading ? (
@@ -104,11 +123,17 @@ export const Site = () => {
                 <h1 className="text-3xl font-bold mb-4 text-center">
                   <div>Verification Result for</div>
                   <div className="text-green-400">
-                    {truncateMiddle(prefix, 20)}.wal.app
+                    {truncateMiddle(query, 20)}.wal.app
                   </div>
                 </h1>
 
-                <ProvenanceCard provenance={provenance} />
+                <ProvenanceCard
+                  provenance={provenance}
+                  isFullyVerified={isFullyVerified(
+                    provenance,
+                    siteResources.resources,
+                  )}
+                />
 
                 <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
                   {[
@@ -206,13 +231,6 @@ export const Site = () => {
           </p>
         </div>
       )}
-
-      <img
-        src="/globe_big.png"
-        alt="Globe"
-        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[1200px] z-0 pointer-events-none"
-        loading="lazy"
-      />
     </div>
   );
 };
