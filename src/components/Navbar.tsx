@@ -15,7 +15,7 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
   const [open, setOpen] = useState(false);
 
   return (
-    <nav className="w-full h-16 px-4 fixed top-0 z-[10] backdrop-blur-md bg-black/5 shadow-sm">
+    <nav className="w-full h-16 px-4 fixed top-0 z-[1000] backdrop-blur-md bg-black/5 shadow-sm">
       <div className="flex justify-between items-center h-full max-w-7xl mx-auto w-full">
         <RouterLink
           to="/"
