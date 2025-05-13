@@ -42,7 +42,11 @@ export const Mvr = () => {
             new TextDecoder().decode(fromBase64(mvrData.provenance)),
           );
           setProvenance(jsonl);
-          const verified = await verifyBytecode(mvrData.digest, jsonl);
+          const verified = await verifyBytecode(
+            mvrData.packageAddress,
+            mvrData.digest,
+            jsonl,
+          );
           setIsVerified(verified);
         } else {
           setProvenance(undefined);
