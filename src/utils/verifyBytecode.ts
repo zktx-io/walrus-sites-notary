@@ -53,14 +53,34 @@ const verification = (
 };
 
 export const verifyBytecode = async (
+  packageAddress: string,
   digest: string,
   provenance: JsonLPayload,
 ): Promise<boolean> => {
   const client = new SuiClient({ url: getFullnodeUrl('mainnet') });
   const receipt = await client.getTransactionBlock({
     digest,
-    options: { showRawInput: true },
+    options: { showRawInput: true, showEffects: true },
   });
+
+  if (!receipt.effects || !receipt.effects.created) {
+    console.error('Transaction not found');
+    return false;
+  }
+
+  const immutables = receipt.effects.created.find(
+    (o) => o.owner === 'Immutable',
+  );
+
+  if (!immutables) {
+    console.error('No immutable objects found');
+    return false;
+  }
+
+  if (immutables.reference.objectId !== packageAddress) {
+    console.error('Package address does not match');
+    return false;
+  }
 
   const transaction = Transaction.from(
     toBase64(fromBase64(receipt.rawTransaction!).slice(4)),

@@ -34,7 +34,12 @@ const joinProvenanceChunks = (metadata: Record<string, string>) => {
 
 export const getMvrData = async (
   name: string,
-): Promise<{ mvr: MvrData; provenance?: string; digest?: string }> => {
+): Promise<{
+  mvr: MvrData;
+  packageAddress: string;
+  provenance?: string;
+  digest?: string;
+}> => {
   const response = await fetch(
     `https://mainnet.mvr.mystenlabs.com/v1/names/${name}`,
     {
@@ -42,6 +47,7 @@ export const getMvrData = async (
     },
   );
   const json = await response.json();
+  const packageAddress = json.package_address;
 
   const provenance = joinProvenanceChunks(json.metadata || {});
   const metadata: MvrData['metadata'] = Object.fromEntries(
@@ -60,5 +66,6 @@ export const getMvrData = async (
     mvr: cleaned,
     provenance,
     digest: json.metadata.tx_digest || undefined,
+    packageAddress,
   };
 };
