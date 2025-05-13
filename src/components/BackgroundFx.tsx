@@ -23,11 +23,12 @@ export const BackgroundFx = () => {
       'SUI',
       'WALRUS',
       'SEAL',
-      'TRUST',
       'BLOCKCHAIN',
       'MOVE',
       'PTB',
-      'VERIFY',
+      'ZKLOGIN',
+      'ENOKI',
+      'SUIPLAY0X1',
     ];
 
     const specialColumns: (null | {
@@ -87,14 +88,14 @@ export const BackgroundFx = () => {
           if (step < word.length) {
             const chY = wordY + step;
             const ch = word[step];
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.9)';
+            ctx.fillStyle = 'hsl(150, 100%, 65%)';
             ctx.font = `bold ${fontSize}px monospace`;
             ctx.fillText(ch, x * fontSize, chY * fontSize);
             trails.push({ x, y: chY, char: ch, opacity: 0.5 });
             spec.step++;
             skipRandom = true;
           } else if (holdFrames > 0) {
-            ctx.fillStyle = 'rgba(0, 255, 0, 0.9)';
+            ctx.fillStyle = 'hsl(150, 100%, 65%)';
             ctx.font = `bold ${fontSize}px monospace`;
             for (let j = 0; j < word.length; j++) {
               const chY = wordY + j;
