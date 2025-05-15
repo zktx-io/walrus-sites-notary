@@ -28,8 +28,8 @@ function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/site" element={<Site />} />
-              <Route path="/mvr" element={<Mvr />} />
+              <Route path="/site/*" element={<Site />} />
+              <Route path="/mvr/*" element={<Mvr />} />
               <Route path="/sign" element={<Sign />} />
               <Route path="/404.html" element={<NotFound />} />
               <Route path="*" element={<NotFound />} />

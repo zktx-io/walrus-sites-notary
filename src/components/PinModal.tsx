@@ -15,17 +15,15 @@ export const PinModal = ({
 }) => {
   const [pin, setPin] = useState('');
 
+  const handleSubmit = () => {
+    if (pin.trim()) onSubmit(pin.trim());
+  };
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-          onClick={(e) => e.stopPropagation()}
-        />
-        <Dialog.Content
-          className="fixed z-50 top-1/2 left-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 bg-[#0b0d14] border border-white/10 p-6 rounded-xl shadow-xl"
-          onInteractOutside={(e) => e.preventDefault()}
-        >
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-1001" />
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-1002 w-full max-w-md bg-[#0b0d14] border border-white/10 p-6 rounded-xl shadow-xl">
           <div className="flex justify-between items-center mb-4">
             <Dialog.Title className="text-xl font-semibold text-white">
               Enter PIN
@@ -33,9 +31,7 @@ export const PinModal = ({
             <Dialog.Close asChild>
               <button
                 className="text-white hover:text-gray-300"
-                tabIndex={-1}
-                data-close
-                type="button"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -48,20 +44,31 @@ export const PinModal = ({
           </p>
 
           <input
+            autoFocus
             type="password"
             placeholder="Enter your PIN"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+            }}
             className="w-full px-3 py-2 rounded-md bg-gray-800 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
 
-          {errorMessage && (
-            <p className="mt-2 text-sm text-red-500">{errorMessage}</p>
-          )}
+          <div className="min-h-[24px] mt-2">
+            {errorMessage ? (
+              <p className="text-sm text-red-500">{errorMessage}</p>
+            ) : null}
+          </div>
 
           <button
-            onClick={() => onSubmit(pin)}
-            className="mt-4 w-full bg-green-500 hover:bg-green-600 text-black font-semibold py-2 rounded-md transition"
+            onClick={handleSubmit}
+            disabled={!pin.trim()}
+            className={`w-full bg-green-500 text-black font-semibold py-2 rounded-md transition ${
+              !pin.trim()
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-green-600'
+            }`}
           >
             Submit
           </button>
