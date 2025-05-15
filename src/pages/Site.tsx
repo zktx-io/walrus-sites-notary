@@ -8,7 +8,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
@@ -38,8 +38,8 @@ const isFullyVerified = (
 };
 
 export const Site = () => {
-  const [searchParams] = useSearchParams();
-  const query = searchParams.get('q') || '';
+  const location = useLocation();
+  const query = location.pathname.replace(/^\/site\//, '');
 
   const [network, setNetwork] = useState('testnet');
   const [loading, setLoading] = useState(true);

@@ -1,6 +1,6 @@
 import { fromBase64 } from '@mysten/sui/utils';
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 import { BackgroundFx } from '../components/BackgroundFx';
 import { MvrGitInfo } from '../components/MvrGitInfo';
@@ -14,8 +14,8 @@ import { truncateMiddle } from '../utils/truncateMiddle';
 import { verifyBytecode } from '../utils/verifyBytecode';
 
 export const Mvr = () => {
-  const [searchParams] = useSearchParams();
-  const query = searchParams.get('q') || '';
+  const location = useLocation();
+  const query = location.pathname.replace(/^\/mvr\//, '');
 
   const [loading, setLoading] = useState(true);
   const [provenance, setProvenance] = useState<JsonLPayload | undefined>(

@@ -26,13 +26,11 @@ export const Home = () => {
     const isMvrPath = /^@[\w.-]+\/[\w.-]+$/i.test(trimmed);
 
     if (isWalApp) {
-      const subdomain = trimmed.split('.')[0];
       setError('');
-      navigate(`/site?q=${subdomain}`);
+      navigate(`/site/${trimmed.split('.')[0]}`);
     } else if (isMvrPath) {
-      const encoded = encodeURIComponent(trimmed);
       setError('');
-      navigate(`/mvr?q=${encoded}`);
+      navigate(`/mvr/${trimmed}`);
     } else {
       setError(
         'Enter a valid `.wal.app` URL or MVR path like `@name/package`.',
