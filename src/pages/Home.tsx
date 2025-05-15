@@ -14,20 +14,18 @@ export const Home = () => {
     e.preventDefault();
     const trimmed = inputValue.trim();
 
-    const cleanedForCheck = trimmed
-      .replace(/^https?:\/\//, '')
-      .replace(/\/$/, '');
+    const cleaned = trimmed.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
     // Check if it's a valid wal.app URL
     const isWalApp = /^([a-z0-9-]+)\.(wal\.app|localhost:3000)?$/i.test(
-      cleanedForCheck,
+      cleaned,
     );
     // Check if it's an MVR path like @name/package
     const isMvrPath = /^@[\w.-]+\/[\w.-]+$/i.test(trimmed);
 
     if (isWalApp) {
       setError('');
-      navigate(`/site/${trimmed.split('.')[0]}`);
+      navigate(`/site/${cleaned.split('.')[0]}`);
     } else if (isMvrPath) {
       setError('');
       navigate(`/mvr/${trimmed}`);

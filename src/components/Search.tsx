@@ -14,24 +14,18 @@ const SearchModal = ({
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
 
-  const cleanedInput = input
-    .trim()
-    .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '');
+  const trimmed = input.trim();
+  const cleaned = trimmed.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-  const isWalApp = /^([a-z0-9-]+)\.(wal\.app|localhost:3000)?$/i.test(
-    cleanedInput,
-  );
+  const isWalApp = /^([a-z0-9-]+)\.(wal\.app|localhost:3000)?$/i.test(cleaned);
   const isMvrPath = /^@[\w.-]+\/[\w.-]+$/i.test(input.trim());
 
   const handleSearch = () => {
     if (isWalApp) {
-      const subdomain = cleanedInput.split('.')[0];
-      navigate(`/site?q=${subdomain}`);
+      navigate(`/site/${cleaned.split('.')[0]}`);
       setOpen(false);
     } else if (isMvrPath) {
-      const encoded = encodeURIComponent(input.trim());
-      navigate(`/mvr?q=${encoded}`);
+      navigate(`/mvr/${trimmed}`);
       setOpen(false);
     } else {
       setError(
