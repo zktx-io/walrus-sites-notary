@@ -20,15 +20,17 @@ export const BackgroundFx = () => {
       'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/アイウエオカキクケコ神風火空力心技術';
 
     const specialWords = [
+      'BLOCKCHAIN',
       'SUI',
+      'PTB',
+      'MOVE',
+      'MVR',
+      'ENOKI',
+      'ZKLOGIN',
       'WALRUS',
       'SEAL',
-      'BLOCKCHAIN',
-      'MOVE',
-      'PTB',
-      'ZKLOGIN',
-      'ENOKI',
       'SUIPLAY0X1',
+      'WEB3',
     ];
 
     const specialColumns: (null | {
