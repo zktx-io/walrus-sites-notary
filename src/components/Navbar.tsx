@@ -38,7 +38,7 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
               <Github className="w-5 h-5" />
             </a>
             <a
-              href="https://docs.walrus.site"
+              href="https://docs.wal.app"
               className="p-2 rounded-full hover:bg-white/10 transition-colors"
               title="Walrus Docs"
             >
@@ -82,7 +82,7 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
                 <Github className="w-5 h-5" />
               </a>
               <a
-                href="https://docs.walrus.site"
+                href="https://docs.wal.app"
                 className="p-2 rounded-full hover:bg-white/10 transition-colors"
                 title="Walrus Docs"
               >
