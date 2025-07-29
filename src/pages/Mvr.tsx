@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { BackgroundFx } from '../components/BackgroundFx';
+import { MoveCall } from '../components/MoveCall';
 import { MvrGitInfo } from '../components/MvrGitInfo';
 import { MvrMetaData } from '../components/MvrMetaData';
 import { MvrReadMe } from '../components/MvrReadMe';
 import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
+import { Tabs } from '../components/Tabs';
 import { getMvrData, MvrData } from '../utils/getMvrData';
 import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
 import { truncateMiddle } from '../utils/truncateMiddle';
@@ -22,6 +24,10 @@ export const Mvr = () => {
     undefined,
   );
   const [mvrData, setMvrData] = useState<MvrData>({});
+  const [params, setParams] = useState<{
+    [pkg: string]: { name: string; params: { name: string; type: string }[] }[];
+  }>({});
+  const [pkgAddress, setPkgAddress] = useState<string>('');
   const [isVerified, setIsVerified] = useState<boolean>(false);
 
   useEffect(() => {
@@ -37,6 +43,8 @@ export const Mvr = () => {
       try {
         const mvrData = await getMvrData(query);
         setMvrData(mvrData.mvr);
+        setParams(mvrData.params || {});
+        setPkgAddress(mvrData.packageAddress);
         if (mvrData.provenance && mvrData.digest) {
           const jsonl = parseJsonl(
             new TextDecoder().decode(fromBase64(mvrData.provenance)),
@@ -88,7 +96,22 @@ export const Mvr = () => {
                 />
                 <MvrGitInfo mvrData={mvrData} />
                 <MvrMetaData mvrData={mvrData} />
-                <MvrReadMe mvrData={mvrData} />
+                <Tabs
+                  tabs={[
+                    {
+                      label: 'ReadMe',
+                      value: 'readme',
+                      content: <MvrReadMe mvrData={mvrData} />,
+                    },
+                    {
+                      label: 'MoveCall',
+                      value: 'movecall',
+                      content: (
+                        <MoveCall address={pkgAddress} params={params} />
+                      ),
+                    },
+                  ]}
+                />
               </>
             )}
           </div>
