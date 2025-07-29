@@ -1,3 +1,5 @@
+import { fromBase64 } from '@mysten/sui/utils';
+
 export interface MvrData {
   git_info?: {
     path: string;
@@ -73,7 +75,9 @@ export const getMvrData = async (
   return {
     mvr: cleaned,
     provenance,
-    params: params ? JSON.parse(params) : undefined,
+    params: params
+      ? JSON.parse(new TextDecoder().decode(fromBase64(params)))
+      : undefined,
     digest: json.package_info.metadata.prov_tx || undefined,
     packageAddress,
   };
