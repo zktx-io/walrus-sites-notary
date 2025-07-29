@@ -1,4 +1,4 @@
-import { AlertTriangle, Play, Wrench } from 'lucide-react';
+import { Play, Wrench, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
 const SUPPORTED_TYPES = [
@@ -12,6 +12,17 @@ const SUPPORTED_TYPES = [
   'Address',
   'string::String',
 ];
+
+const isExecutable = (params: { type: string }[]): boolean => {
+  if (params.length === 0) return true;
+
+  const ctxIndex = params.findIndex((p) => p.type === '&mut TxContext');
+  const hasCtx = ctxIndex !== -1;
+
+  if (!hasCtx) return true;
+
+  return ctxIndex === params.length - 1;
+};
 
 export const MoveCallForm = ({
   fn,
@@ -30,6 +41,8 @@ export const MoveCallForm = ({
     setValues(newValues);
   };
 
+  const executable = isExecutable(fn.params);
+
   const filteredParams = fn.params.filter(
     (p) => p.name !== 'ctx' && p.type !== '&mut TxContext',
   );
@@ -37,6 +50,8 @@ export const MoveCallForm = ({
   const hasUnsupportedType = filteredParams.some(
     (p) => !SUPPORTED_TYPES.includes(p.type),
   );
+
+  const isDisabled = isRunning || hasUnsupportedType || !executable;
 
   return (
     <div className="p-4 bg-white/10 rounded-md border border-white/10">
@@ -46,6 +61,15 @@ export const MoveCallForm = ({
           .map((p) => `${p.name}: ${p.type}`)
           .join(', ')})`}
       </h3>
+
+      {!executable && (
+        <p className="text-yellow-400 text-xs flex items-center gap-1 mb-3">
+          <AlertTriangle className="w-4 h-4" />
+          This function cannot be executed directly. The{' '}
+          <code className="font-mono">&mut TxContext</code> parameter must be
+          the only or the last argument.
+        </p>
+      )}
 
       <table className="w-full text-sm text-left text-gray-300">
         <tbody>
@@ -67,7 +91,7 @@ export const MoveCallForm = ({
                         : 'bg-gray-700 text-gray-400 cursor-not-allowed'
                     }`}
                     placeholder={p.type}
-                    disabled={!isSupported}
+                    disabled={!executable || isRunning || hasUnsupportedType}
                   />
                   {!isSupported && (
                     <p className="text-xs text-yellow-400 mt-1 flex items-center gap-1">
@@ -85,14 +109,14 @@ export const MoveCallForm = ({
       <div className="flex justify-end mt-4">
         <button
           onClick={() => onExcute(values)}
-          disabled={isRunning || hasUnsupportedType}
-          className={`flex items-center gap-1 text-sm px-3 py-1 rounded-md text-white
-    ${
-      isRunning || hasUnsupportedType
-        ? 'bg-green-600 opacity-50'
-        : 'bg-green-600 hover:bg-green-700'
-    }
-  `}
+          disabled={isDisabled}
+          className={`flex items-center gap-1 text-sm px-3 py-1 rounded-md text-white transition-colors duration-150
+            ${
+              isDisabled
+                ? 'bg-green-600 opacity-50 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700'
+            }
+          `}
         >
           <Play className="w-4 h-4" />
           Run
