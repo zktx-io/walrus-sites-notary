@@ -10,18 +10,18 @@ export interface MvrData {
     documentation_url?: string;
     homepage_url?: string;
     icon_url?: string;
-    [key: string]: string | undefined;
   };
   package_info?: {
     id: string;
     git_table_id: string;
     default_name?: string;
+    metadata: { [key: string]: string | undefined };
   };
 }
 
-const joinProvenanceChunks = (metadata: Record<string, string>) => {
+const joinChunks = (prefix: string, metadata: Record<string, string>) => {
   const chunks = Object.entries(metadata)
-    .filter(([key]) => key.startsWith('provenance_'))
+    .filter(([key]) => key.startsWith(prefix))
     .sort(([a], [b]) => {
       const aIndex = parseInt(a.split('_')[1], 10);
       const bIndex = parseInt(b.split('_')[1], 10);
@@ -38,6 +38,9 @@ export const getMvrData = async (
   mvr: MvrData;
   packageAddress: string;
   provenance?: string;
+  params?: {
+    [pkg: string]: { name: string; params: { name: string; type: string }[] }[];
+  };
   digest?: string;
 }> => {
   const response = await fetch(
@@ -49,11 +52,16 @@ export const getMvrData = async (
   const json = await response.json();
   const packageAddress = json.package_address;
 
-  const provenance = joinProvenanceChunks(json.metadata || {});
+  const provenance = joinChunks(
+    'prov_jsonl_',
+    json.package_info.metadata || {},
+  );
+  const params = joinChunks('prov_params_', json.package_info.metadata || {});
   const metadata: MvrData['metadata'] = Object.fromEntries(
-    Object.entries(json.metadata || {})
-      .filter(([key]) => !key.startsWith('provenance_'))
-      .map(([k, v]) => [k, typeof v === 'string' ? v : String(v)]),
+    Object.entries(json.metadata || {}).map(([k, v]) => [
+      k,
+      typeof v === 'string' ? v : String(v),
+    ]),
   );
 
   const cleaned: MvrData = {
@@ -65,7 +73,8 @@ export const getMvrData = async (
   return {
     mvr: cleaned,
     provenance,
-    digest: json.metadata.tx_digest || undefined,
+    params: params ? JSON.parse(params) : undefined,
+    digest: json.package_info.metadata.prov_tx || undefined,
     packageAddress,
   };
 };
