@@ -1,3 +1,4 @@
+import { useCurrentAccount } from '@mysten/dapp-kit';
 import { Play, Wrench, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
@@ -33,6 +34,7 @@ export const MoveCallForm = ({
   onExcute: (params: { type: string; value: string }[]) => void;
   isRunning: boolean;
 }) => {
+  const account = useCurrentAccount();
   const [values, setValues] = useState<{ type: string; value: string }[]>([]);
 
   const handleChange = (index: number, type: string, value: string) => {
@@ -51,7 +53,7 @@ export const MoveCallForm = ({
     (p) => !SUPPORTED_TYPES.includes(p.type),
   );
 
-  const isDisabled = isRunning || hasUnsupportedType || !executable;
+  const isDisabled = isRunning || hasUnsupportedType || !executable || !account;
 
   return (
     <div className="p-4 bg-white/10 rounded-md border border-white/10">
@@ -113,7 +115,7 @@ export const MoveCallForm = ({
           className={`flex items-center gap-1 text-sm px-3 py-1 rounded-md text-white transition-colors duration-150
             ${
               isDisabled
-                ? 'bg-green-600 opacity-50 cursor-not-allowed'
+                ? 'bg-green-600 opacity-50'
                 : 'bg-green-600 hover:bg-green-700'
             }
           `}
