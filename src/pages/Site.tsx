@@ -55,6 +55,8 @@ export const Site = () => {
     name: '',
     projectUrl: '',
     resources: [],
+    epoch: 0,
+    blobs: {},
   });
 
   useEffect(() => {
@@ -69,6 +71,8 @@ export const Site = () => {
       name: '',
       projectUrl: '',
       resources: [],
+      epoch: 0,
+      blobs: {},
     });
 
     if (!query) {
@@ -219,6 +223,8 @@ export const Site = () => {
                 <ResourceTable
                   provenance={provenance}
                   resources={siteResources.resources}
+                  epoch={siteResources.epoch}
+                  blobs={siteResources.blobs}
                 />
               </>
             )}

@@ -1,11 +1,14 @@
 import { ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
+import { OwnedBlob } from '../utils/getSiteResources';
 import { JsonLPayload } from '../utils/parseJsonl';
 
 export const ResourceTable = ({
   provenance,
   resources,
+  epoch,
+  blobs,
 }: {
   provenance: JsonLPayload | undefined;
   resources: {
@@ -14,6 +17,8 @@ export const ResourceTable = ({
     blobId: string;
     blobHash: string;
   }[];
+  epoch: number;
+  blobs: Record<string, OwnedBlob>;
 }) => {
   const itemsPerPage = 10;
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,6 +58,19 @@ export const ResourceTable = ({
     return match ? 'Verified' : 'Not verified';
   };
 
+  const renderRemainingEpoch = (
+    owned?: OwnedBlob,
+  ): { text: string; expired: boolean } => {
+    if (!owned || owned.endEpoch == null) {
+      return { text: '-', expired: false };
+    }
+    const remaining = owned.endEpoch - epoch;
+    if (remaining <= 0) {
+      return { text: 'Expired', expired: true };
+    }
+    return { text: `${remaining} lefts`, expired: false };
+  };
+
   return (
     <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
       <table className="table-fixed w-full text-sm border-collapse">
@@ -60,12 +78,19 @@ export const ResourceTable = ({
           <tr>
             <th className="text-left py-2 w-[30%]">Filename</th>
             <th className="text-left py-2 px-4 w-[50%]">Blob ID</th>
+            <th className="text-left py-2 px-4 w-[18%] hidden md:table-cell">
+              Epochs
+            </th>
             <th className="text-right py-2 w-[20%]">Status</th>
           </tr>
         </thead>
         <tbody>
           {paginatedResources.map((res) => {
             const status = getVerificationStatus(res);
+            const ownedBlob = blobs[res.blobId];
+            const { text: remainingText, expired } =
+              renderRemainingEpoch(ownedBlob);
+
             return (
               <tr key={res.id} className="border-b border-gray-800">
                 <td
@@ -96,6 +121,13 @@ export const ResourceTable = ({
                     </a>
                   </div>
                 </td>
+                <td
+                  className={`py-2 px-4 hidden md:table-cell ${
+                    expired ? 'text-red-400 font-medium' : 'text-gray-300'
+                  }`}
+                >
+                  {remainingText}
+                </td>
                 <td className="py-2 text-right overflow-hidden text-ellipsis whitespace-nowrap">
                   {status === 'Verified' && (
                     <span className="text-green-400">{status}</span>
@@ -116,18 +148,20 @@ export const ResourceTable = ({
               </tr>
             );
           })}
-          {Array.from({
-            length: itemsPerPage - paginatedResources.length,
-          }).map((_, idx) => (
-            <tr
-              key={`empty-${idx}`}
-              className="border-b border-gray-800 opacity-20"
-            >
-              <td className="py-2">&nbsp;</td>
-              <td className="py-2 px-4">&nbsp;</td>
-              <td className="py-2">&nbsp;</td>
-            </tr>
-          ))}
+
+          {Array.from({ length: itemsPerPage - paginatedResources.length }).map(
+            (_, idx) => (
+              <tr
+                key={`empty-${idx}`}
+                className="border-b border-gray-800 opacity-20"
+              >
+                <td className="py-2">&nbsp;</td>
+                <td className="py-2 px-4">&nbsp;</td>
+                <td className="py-2 px-4 hidden md:table-cell">&nbsp;</td>
+                <td className="py-2">&nbsp;</td>
+              </tr>
+            ),
+          )}
         </tbody>
       </table>
 

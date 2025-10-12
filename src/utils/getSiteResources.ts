@@ -9,9 +9,18 @@ import {
 import { toBase64, toHex } from '@mysten/sui/utils';
 import { SuinsClient } from '@mysten/suins';
 
+import { getCurrentWalrusEpoch } from './getCurrentWalrusEpoch';
 import { loadSiteConfig } from './loadSiteConfig';
 
 const OBJECTSIZE = 50;
+
+export interface OwnedBlob {
+  objectId: string;
+  deletable: boolean;
+  endEpoch?: number;
+  startEpoch?: number;
+  storageSize?: string;
+}
 
 const bigintToBase64UrlLE = (num: string): string => {
   const bytes = new Uint8Array(32);
@@ -48,6 +57,83 @@ const getMoveField = (
     return (content.fields as Record<string, MoveValue>)[key] as string;
   }
   return '';
+};
+
+type BlobStorageFields = {
+  start_epoch?: number | string;
+  end_epoch?: number | string;
+  storage_size?: string | number;
+};
+
+type BlobFields = {
+  blob_id?: string | number;
+  deletable?: boolean;
+  storage?: { fields?: BlobStorageFields };
+};
+
+export const isMoveObject = (
+  content: SuiParsedData | null | undefined,
+): content is SuiParsedData & {
+  dataType: 'moveObject';
+  type: string;
+  fields: BlobFields;
+} => {
+  return !!content && content.dataType === 'moveObject';
+};
+
+const toNum = (v?: number | string): number | undefined =>
+  typeof v === 'number'
+    ? v
+    : typeof v === 'string' && v !== ''
+      ? Number(v)
+      : undefined;
+
+const toStr = (v?: number | string): string | undefined =>
+  typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined;
+
+const getAllOwnedObjects = async (
+  client: SuiClient,
+  owner: string,
+): Promise<{ [blobId: string]: OwnedBlob }> => {
+  const out: { [blobId: string]: OwnedBlob } = {};
+  let cursor: string | null = null;
+
+  for (;;) {
+    const page = await client.getOwnedObjects({
+      owner,
+      cursor,
+      limit: 50,
+      options: { showContent: true },
+    });
+
+    for (const item of page.data) {
+      const obj = item.data;
+      if (!obj) continue;
+
+      const c = obj.content;
+      if (!isMoveObject(c)) continue;
+      if (!c.type.endsWith('::blob::Blob') && !c.type.endsWith('::blobs::Blob'))
+        continue;
+
+      const rawBlobId = toStr(c.fields.blob_id);
+      if (!rawBlobId) continue;
+
+      const s = c.fields.storage?.fields;
+      const blobId = bigintToBase64UrlLE(rawBlobId);
+      out[blobId] = {
+        objectId: obj.objectId,
+        deletable: Boolean(c.fields.deletable),
+        startEpoch: toNum(s?.start_epoch),
+        endEpoch: toNum(s?.end_epoch),
+        storageSize: toStr(s?.storage_size),
+      };
+    }
+
+    if (!page.hasNextPage || !page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
+
+  return out;
 };
 
 const getAllDynamicFields = async (
@@ -93,6 +179,8 @@ export interface SiteResourceData {
   name: string;
   projectUrl: string;
   resources: ResourceData[];
+  epoch: number;
+  blobs: { [blobId: string]: OwnedBlob };
 }
 
 export async function getAllObjects(
@@ -177,7 +265,7 @@ export const getSiteResources = async (
 
     const siteObject = await suiClient.getObject({
       id: siteId,
-      options: { showContent: true },
+      options: { showContent: true, showOwner: true },
     });
 
     if (
@@ -188,6 +276,12 @@ export const getSiteResources = async (
     ) {
       throw new Error('Failed to fetch site object.');
     }
+
+    const blobs = await getAllOwnedObjects(
+      suiClient,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (siteObject.data.owner as any).AddressOwner!,
+    );
 
     const ids = await getAllDynamicFields(suiClient, siteId);
     const resources = await getAllObjects(suiClient, {
@@ -213,6 +307,8 @@ export const getSiteResources = async (
       return a.path.localeCompare(b.path);
     });
 
+    const epoch = await getCurrentWalrusEpoch(suiClient);
+
     return {
       id: siteId,
       creator: getMoveField(siteObject.data.content!, 'creator'),
@@ -222,6 +318,8 @@ export const getSiteResources = async (
       name: getMoveField(siteObject.data.content!, 'name'),
       projectUrl: getMoveField(siteObject.data.content!, 'project_url'),
       resources,
+      epoch,
+      blobs,
     };
   } catch (error) {
     console.error('Error fetching site object:', error);
