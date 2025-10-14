@@ -8,7 +8,7 @@ import {
   Tag,
   ExternalLink,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { BackgroundFx } from '../components/BackgroundFx';
@@ -63,30 +63,61 @@ export const Site = () => {
     blobs: {},
   });
 
+  const fetchData = useCallback(async () => {
+    try {
+      const siteData = await getSiteResources(query);
+      setSiteResources(siteData);
+
+      const jsonl = siteData.resources.find(
+        (res) => res.path === '/.well-known/walrus-sites.intoto.jsonl',
+      );
+      if (jsonl) {
+        const blobBytes = await readBlob(jsonl.blobId, jsonl.range);
+        setProvenance(parseJsonl(new TextDecoder().decode(blobBytes)));
+      } else {
+        setProvenance(undefined);
+      }
+    } catch {
+      setProvenance(undefined);
+    } finally {
+      setLoading(false);
+    }
+  }, [query]);
+
   const onExtend = async (opts: {
     sender: string;
     objectIds: string[];
     epochs: number;
   }) => {
-    const transaction = await extendEpoch(opts);
-    return new Promise<void>((resolve, reject) => {
-      signAndExecuteTransaction(
-        {
-          transaction,
-          chain: `sui:${network}`,
-        },
-        {
-          onSuccess: (result) => {
-            console.log('executed transaction', result);
-            resolve();
+    if (!opts?.sender) throw new Error('Missing sender address.');
+    if (!Array.isArray(opts.objectIds) || opts.objectIds.length === 0) {
+      throw new Error('No blob objects to extend.');
+    }
+    if (!Number.isInteger(opts.epochs) || opts.epochs <= 0) {
+      throw new Error('Epochs must be a positive integer.');
+    }
+
+    try {
+      setLoading(true);
+      const transaction = await extendEpoch(opts);
+      await new Promise<void>((resolve, reject) => {
+        signAndExecuteTransaction(
+          { transaction, chain: `sui:${network}` },
+          {
+            onSuccess: async () => {
+              await fetchData();
+              resolve();
+            },
+            onError: (error) => {
+              reject(error);
+            },
           },
-          onError: (error) => {
-            console.error('failed to execute transaction', error);
-            reject(error);
-          },
-        },
-      );
-    });
+        );
+      });
+    } catch (e) {
+      setLoading(false);
+      throw e;
+    }
   };
 
   useEffect(() => {
@@ -110,27 +141,8 @@ export const Site = () => {
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        const siteData = await getSiteResources(query);
-        setSiteResources(siteData);
-
-        const jsonl = siteData.resources.find(
-          (res) => res.path === '/.well-known/walrus-sites.intoto.jsonl',
-        );
-        if (jsonl) {
-          const blobBytes = await readBlob(jsonl.blobId, jsonl.range);
-          setProvenance(parseJsonl(new TextDecoder().decode(blobBytes)));
-        }
-      } catch {
-        setProvenance(undefined);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, [query]);
+  }, [query, fetchData]);
 
   useEffect(() => {
     loadSiteConfig().then((config) => {
