@@ -1,25 +1,36 @@
+import { useCurrentAccount } from '@mysten/dapp-kit';
 import { ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
 import { OwnedBlob } from '../utils/getSiteResources';
 import { JsonLPayload } from '../utils/parseJsonl';
 
+import { ExtendBlobsLauncher } from './ExtendBlobsModal';
+
 export const ResourceTable = ({
   provenance,
-  resources,
   epoch,
+  resources,
   blobs,
+  onExtend,
 }: {
   provenance: JsonLPayload | undefined;
+  epoch: number;
   resources: {
     id: string;
     path: string;
     blobId: string;
     blobHash: string;
   }[];
-  epoch: number;
   blobs: Record<string, OwnedBlob>;
+  onExtend: (opts: {
+    sender: string;
+    objectIds: string[];
+    epochs: number;
+  }) => Promise<void>;
 }) => {
+  const currentAccount = useCurrentAccount();
+
   const itemsPerPage = 10;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(resources.length / itemsPerPage);
@@ -73,6 +84,18 @@ export const ResourceTable = ({
 
   return (
     <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
+      <div className="flex items-center justify-end mb-2">
+        {currentAccount && (
+          <ExtendBlobsLauncher
+            resources={resources}
+            blobs={blobs}
+            currentEpoch={epoch}
+            sender={currentAccount.address}
+            onExtend={onExtend}
+          />
+        )}
+      </div>
+
       <table className="table-fixed w-full text-sm border-collapse">
         <thead className="text-gray-400 border-b border-gray-700">
           <tr>

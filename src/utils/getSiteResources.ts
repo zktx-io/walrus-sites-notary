@@ -71,7 +71,7 @@ type BlobFields = {
   storage?: { fields?: BlobStorageFields };
 };
 
-export const isMoveObject = (
+const isMoveObject = (
   content: SuiParsedData | null | undefined,
 ): content is SuiParsedData & {
   dataType: 'moveObject';

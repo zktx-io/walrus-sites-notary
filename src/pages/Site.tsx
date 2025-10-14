@@ -1,3 +1,4 @@
+import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
 import {
   Hash,
   User,
@@ -14,6 +15,7 @@ import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
 import { ResourceTable } from '../components/ResourceTable';
+import { extendEpoch } from '../utils/extendEpoch';
 import { getSiteResources, SiteResourceData } from '../utils/getSiteResources';
 import { loadSiteConfig } from '../utils/loadSiteConfig';
 import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
@@ -41,6 +43,8 @@ export const Site = () => {
   const location = useLocation();
   const query = location.pathname.replace(/^\/site\//, '');
 
+  const { mutateAsync: signAndExecuteTransaction } =
+    useSignAndExecuteTransaction();
   const [network, setNetwork] = useState('testnet');
   const [loading, setLoading] = useState(true);
   const [provenance, setProvenance] = useState<JsonLPayload | undefined>(
@@ -58,6 +62,32 @@ export const Site = () => {
     epoch: 0,
     blobs: {},
   });
+
+  const onExtend = async (opts: {
+    sender: string;
+    objectIds: string[];
+    epochs: number;
+  }) => {
+    const transaction = await extendEpoch(opts);
+    return new Promise<void>((resolve, reject) => {
+      signAndExecuteTransaction(
+        {
+          transaction,
+          chain: `sui:${network}`,
+        },
+        {
+          onSuccess: (result) => {
+            console.log('executed transaction', result);
+            resolve();
+          },
+          onError: (error) => {
+            console.error('failed to execute transaction', error);
+            reject(error);
+          },
+        },
+      );
+    });
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -225,6 +255,7 @@ export const Site = () => {
                   resources={siteResources.resources}
                   epoch={siteResources.epoch}
                   blobs={siteResources.blobs}
+                  onExtend={onExtend}
                 />
               </>
             )}
