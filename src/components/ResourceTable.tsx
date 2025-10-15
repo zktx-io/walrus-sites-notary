@@ -9,12 +9,14 @@ import { ExtendBlobsLauncher } from './ExtendBlobsModal';
 
 export const ResourceTable = ({
   provenance,
+  siteObjOwner,
   epoch,
   resources,
   blobs,
   onExtend,
 }: {
   provenance: JsonLPayload | undefined;
+  siteObjOwner: string;
   epoch: number;
   resources: {
     id: string;
@@ -85,7 +87,7 @@ export const ResourceTable = ({
   return (
     <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
       <div className="flex items-center justify-end mb-2">
-        {currentAccount && (
+        {currentAccount && currentAccount.address === siteObjOwner && (
           <ExtendBlobsLauncher
             resources={resources}
             blobs={blobs}

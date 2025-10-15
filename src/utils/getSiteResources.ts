@@ -172,6 +172,7 @@ interface ResourceData {
 
 export interface SiteResourceData {
   id: string;
+  siteObjOwner: string;
   creator: string;
   description: string;
   imageUrl: string;
@@ -277,10 +278,12 @@ export const getSiteResources = async (
       throw new Error('Failed to fetch site object.');
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const siteObjOwner = (siteObject.data.owner as any).AddressOwner!;
+
     const blobs = await getAllOwnedObjects(
       suiClient,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (siteObject.data.owner as any).AddressOwner!,
+      siteObjOwner,
     );
 
     const ids = await getAllDynamicFields(suiClient, siteId);
@@ -311,6 +314,7 @@ export const getSiteResources = async (
 
     return {
       id: siteId,
+      siteObjOwner,
       creator: getMoveField(siteObject.data.content!, 'creator'),
       description: getMoveField(siteObject.data.content!, 'description'),
       imageUrl: getMoveField(siteObject.data.content!, 'image_url'),

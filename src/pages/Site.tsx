@@ -52,6 +52,7 @@ export const Site = () => {
   );
   const [siteResources, setSiteResources] = useState<SiteResourceData>({
     id: '',
+    siteObjOwner: '',
     creator: '',
     description: '',
     imageUrl: '',
@@ -125,6 +126,7 @@ export const Site = () => {
     setProvenance(undefined);
     setSiteResources({
       id: '',
+      siteObjOwner: '',
       creator: '',
       description: '',
       imageUrl: '',
@@ -264,6 +266,7 @@ export const Site = () => {
 
                 <ResourceTable
                   provenance={provenance}
+                  siteObjOwner={siteResources.siteObjOwner}
                   resources={siteResources.resources}
                   epoch={siteResources.epoch}
                   blobs={siteResources.blobs}
