@@ -78,7 +78,7 @@ export const MoveCallForm = ({
           {filteredParams.map((p, i) => {
             const isSupported = SUPPORTED_TYPES.includes(p.type);
             return (
-              <tr key={p.name}>
+              <tr key={`${p.name}-${i}`}>
                 <td className="py-1 pr-2 whitespace-nowrap font-medium w-[120px] text-xs align-middle">
                   {p.name}
                 </td>

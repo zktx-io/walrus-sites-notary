@@ -1,6 +1,6 @@
 import { fromBase64 } from '@mysten/sui/utils';
 import { AlertTriangle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -17,114 +17,129 @@ export const MvrReadMe = ({ mvrData }: { mvrData: MvrData }) => {
   );
 
   // Convert relative paths to GitHub URLs
-  const resolveRelativePath = (path: string): string => {
-    // If already absolute URL, return as is
-    if (path.startsWith('http://') || path.startsWith('https://')) {
-      return path;
-    }
-
-    // If no git info, return as is
-    if (
-      !mvrData.git_info?.repository_url ||
-      !mvrData.git_info?.path ||
-      !mvrData.git_info?.tag
-    ) {
-      return path;
-    }
-
-    // Extract owner and repo from repository URL
-    const repoUrl = mvrData.git_info.repository_url;
-    const match = repoUrl.match(/github\.com\/([^/]+\/[^/]+)/);
-    if (!match) {
-      return path;
-    }
-
-    const repoPath = match[1];
-    let basePath = mvrData.git_info.path;
-    const branch = mvrData.git_info.tag;
-
-    // Get README directory (remove filename)
-    const readmeDirParts = basePath.split('/').filter(Boolean).slice(0, -1);
-    const readmeDir = readmeDirParts.join('/');
-
-    // Resolve relative path
-    let resolvedPath: string;
-    if (path.startsWith('./')) {
-      // Relative to README.md directory: ./assets/image.svg
-      const relativePath = path.substring(2);
-      if (readmeDir) {
-        resolvedPath = `${readmeDir}/${relativePath}`;
-      } else {
-        resolvedPath = relativePath;
+  const resolveRelativePath = useCallback(
+    (path: string): string => {
+      // If already absolute URL, return as is
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
       }
-    } else if (path.startsWith('../')) {
-      // Go up directories: ../other/file.md
-      const dirParts = [...readmeDirParts];
-      let relativePath = path;
 
-      // Count how many levels to go up
-      while (relativePath.startsWith('../')) {
-        if (dirParts.length > 0) {
-          dirParts.pop();
+      // If no git info, return as is
+      if (
+        !mvrData.git_info?.repository_url ||
+        !mvrData.git_info?.path ||
+        !mvrData.git_info?.tag
+      ) {
+        return path;
+      }
+
+      // Extract owner and repo from repository URL
+      const repoUrl = mvrData.git_info.repository_url;
+      const match = repoUrl.match(/github\.com\/([^/]+\/[^/]+)/);
+      if (!match) {
+        return path;
+      }
+
+      const repoPath = match[1];
+      const basePath = mvrData.git_info.path;
+      const branch = mvrData.git_info.tag;
+
+      // Get README directory (remove filename)
+      const readmeDirParts = basePath.split('/').filter(Boolean).slice(0, -1);
+      const readmeDir = readmeDirParts.join('/');
+
+      // Resolve relative path
+      let resolvedPath: string;
+      if (path.startsWith('./')) {
+        // Relative to README.md directory: ./assets/image.svg
+        const relativePath = path.substring(2);
+        if (readmeDir) {
+          resolvedPath = `${readmeDir}/${relativePath}`;
+        } else {
+          resolvedPath = relativePath;
         }
-        relativePath = relativePath.substring(3);
-      }
+      } else if (path.startsWith('../')) {
+        // Go up directories: ../other/file.md
+        const dirParts = [...readmeDirParts];
+        let relativePath = path;
 
-      if (dirParts.length > 0) {
-        resolvedPath = `${dirParts.join('/')}/${relativePath}`;
+        // Count how many levels to go up
+        while (relativePath.startsWith('../')) {
+          if (dirParts.length > 0) {
+            dirParts.pop();
+          }
+          relativePath = relativePath.substring(3);
+        }
+
+        if (dirParts.length > 0) {
+          resolvedPath = `${dirParts.join('/')}/${relativePath}`;
+        } else {
+          resolvedPath = relativePath;
+        }
+      } else if (path.startsWith('/')) {
+        // Absolute path from repo root: /docs/file.md
+        resolvedPath = path.substring(1);
       } else {
-        resolvedPath = relativePath;
+        // Relative path without ./: assets/image.svg
+        if (readmeDir) {
+          resolvedPath = `${readmeDir}/${path}`;
+        } else {
+          resolvedPath = path;
+        }
       }
-    } else if (path.startsWith('/')) {
-      // Absolute path from repo root: /docs/file.md
-      resolvedPath = path.substring(1);
-    } else {
-      // Relative path without ./: assets/image.svg
-      if (readmeDir) {
-        resolvedPath = `${readmeDir}/${path}`;
-      } else {
-        resolvedPath = path;
-      }
-    }
 
-    // Normalize path: remove ./, //, trailing slashes
-    resolvedPath = resolvedPath
-      .split('/')
-      .filter((part) => part !== '.' && part !== '')
-      .join('/')
-      .replace(/\/{2,}/g, '/');
+      // Normalize path: remove ./, //, trailing slashes
+      resolvedPath = resolvedPath
+        .split('/')
+        .filter((part) => part !== '.' && part !== '')
+        .join('/')
+        .replace(/\/{2,}/g, '/');
 
-    // Construct GitHub URL
-    return `https://github.com/${repoPath}/blob/${branch}/${resolvedPath}`;
-  };
+      // Construct GitHub URL
+      return `https://github.com/${repoPath}/blob/${branch}/${resolvedPath}`;
+    },
+    [
+      mvrData.git_info?.repository_url,
+      mvrData.git_info?.path,
+      mvrData.git_info?.tag,
+    ],
+  );
 
   // Convert relative paths in HTML img tags
-  const convertHtmlImagePaths = (content: string): string => {
-    if (
-      !mvrData.git_info?.repository_url ||
-      !mvrData.git_info?.path ||
-      !mvrData.git_info?.tag
-    ) {
-      return content;
-    }
+  const convertHtmlImagePaths = useCallback(
+    (content: string): string => {
+      if (
+        !mvrData.git_info?.repository_url ||
+        !mvrData.git_info?.path ||
+        !mvrData.git_info?.tag
+      ) {
+        return content;
+      }
 
-    // Match img tags with src attributes
-    return content.replace(
-      /<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>/gi,
-      (_match, before, src, after) => {
-        const resolvedSrc = resolveRelativePath(src);
-        // Add ?raw=true for images if it's a GitHub URL
-        let finalSrc = resolvedSrc;
-        if (
-          resolvedSrc.startsWith('https://github.com/') &&
-          !resolvedSrc.includes('?raw=true')
-        ) {
-          finalSrc = `${resolvedSrc}?raw=true`;
-        }
-        return `<img ${before || ''}src="${finalSrc}"${after || ''}>`;
-      },
-    );
-  };
+      // Match img tags with src attributes
+      return content.replace(
+        /<img\s+([^>]*\s+)?src=["']([^"']+)["']([^>]*)>/gi,
+        (_match, before, src, after) => {
+          const resolvedSrc = resolveRelativePath(src);
+          // Add ?raw=true for images if it's a GitHub URL
+          let finalSrc = resolvedSrc;
+          if (
+            resolvedSrc.startsWith('https://github.com/') &&
+            !resolvedSrc.includes('?raw=true')
+          ) {
+            finalSrc = `${resolvedSrc}?raw=true`;
+          }
+          return `<img ${before || ''}src="${finalSrc}"${after || ''}>`;
+        },
+      );
+    },
+    [
+      mvrData.git_info?.repository_url,
+      mvrData.git_info?.path,
+      mvrData.git_info?.tag,
+      resolveRelativePath,
+    ],
+  );
 
   useEffect(() => {
     const fetchReadMe = async () => {
@@ -169,6 +184,7 @@ export const MvrReadMe = ({ mvrData }: { mvrData: MvrData }) => {
     mvrData.git_info?.repository_url,
     mvrData.git_info?.path,
     mvrData.git_info?.tag,
+    convertHtmlImagePaths,
   ]);
 
   return (
