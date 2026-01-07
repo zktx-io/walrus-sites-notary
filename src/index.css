@@ -14,3 +14,24 @@
 }
 
 @import 'tailwindcss';
+
+/* Remove selected text background in code blocks */
+pre code,
+pre code *,
+pre code span,
+pre code .token,
+pre code [class*='token'] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Remove any padding/margin that might cause indentation */
+pre code {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+pre code > * {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}

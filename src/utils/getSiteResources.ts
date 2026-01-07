@@ -281,10 +281,7 @@ export const getSiteResources = async (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const siteObjOwner = (siteObject.data.owner as any).AddressOwner!;
 
-    const blobs = await getAllOwnedObjects(
-      suiClient,
-      siteObjOwner,
-    );
+    const blobs = await getAllOwnedObjects(suiClient, siteObjOwner);
 
     const ids = await getAllDynamicFields(suiClient, siteId);
     const resources = await getAllObjects(suiClient, {
