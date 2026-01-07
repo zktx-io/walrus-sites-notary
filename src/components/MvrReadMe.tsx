@@ -43,11 +43,6 @@ export const MvrReadMe = ({ mvrData }: { mvrData: MvrData }) => {
     let basePath = mvrData.git_info.path;
     const branch = mvrData.git_info.tag;
 
-    // Remove 'packages/' prefix if it exists (API path may include it but web doesn't)
-    if (basePath.startsWith('packages/')) {
-      basePath = basePath.substring('packages/'.length);
-    }
-
     // Get README directory (remove filename)
     const readmeDirParts = basePath.split('/').filter(Boolean).slice(0, -1);
     const readmeDir = readmeDirParts.join('/');
@@ -98,11 +93,6 @@ export const MvrReadMe = ({ mvrData }: { mvrData: MvrData }) => {
       .filter((part) => part !== '.' && part !== '')
       .join('/')
       .replace(/\/{2,}/g, '/');
-
-    // Remove 'packages/' prefix from resolved path if it exists
-    if (resolvedPath.startsWith('packages/')) {
-      resolvedPath = resolvedPath.substring('packages/'.length);
-    }
 
     // Construct GitHub URL
     return `https://github.com/${repoPath}/blob/${branch}/${resolvedPath}`;
