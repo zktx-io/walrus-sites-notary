@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 
 import { BackgroundFx } from '../components/BackgroundFx';
 import { MoveCall } from '../components/MoveCall';
+import { MvrCodeVerifier } from '../components/MvrCodeVerifier';
 import { MvrGitInfo } from '../components/MvrGitInfo';
 import { MvrMetaData } from '../components/MvrMetaData';
 import { MvrReadMe } from '../components/MvrReadMe';
@@ -29,6 +30,7 @@ export const Mvr = () => {
   }>({});
   const [pkgAddress, setPkgAddress] = useState<string>('');
   const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [digest, setDigest] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     setLoading(true);
@@ -45,6 +47,7 @@ export const Mvr = () => {
         setMvrData(mvrData.mvr);
         setParams(mvrData.params || {});
         setPkgAddress(mvrData.packageAddress);
+        setDigest(mvrData.digest);
         if (mvrData.provenance && mvrData.digest) {
           const jsonl = parseJsonl(
             new TextDecoder().decode(fromBase64(mvrData.provenance)),
@@ -102,6 +105,17 @@ export const Mvr = () => {
                       label: 'ReadMe',
                       value: 'readme',
                       content: <MvrReadMe mvrData={mvrData} />,
+                    },
+                    {
+                      label: 'Verifier',
+                      value: 'verifier',
+                      content: (
+                        <MvrCodeVerifier
+                          mvrData={mvrData}
+                          packageAddress={pkgAddress}
+                          digest={digest}
+                        />
+                      ),
                     },
                     {
                       label: 'MoveCall',
