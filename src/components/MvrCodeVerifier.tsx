@@ -358,7 +358,9 @@ export const MvrCodeVerifier = ({
           >
             <div className="rounded border border-white/10 bg-slate-950/40 p-3">
               <label className="flex flex-col gap-2 text-xs text-gray-300">
-                <span className="text-gray-400">Personal access token (optional)</span>
+                <span className="text-gray-400">
+                  Personal access token (optional)
+                </span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <input
                     type={tokenVisible ? 'text' : 'password'}
@@ -395,8 +397,8 @@ export const MvrCodeVerifier = ({
                   </button>
                 </div>
                 <p className="text-[0.65rem] text-gray-500">
-                  Use a token with minimal repo read access to avoid GitHub API rate
-                  limits when resolving Move packages.
+                  Use a token with minimal repo read access to avoid GitHub API
+                  rate limits when resolving Move packages.
                 </p>
               </label>
             </div>
