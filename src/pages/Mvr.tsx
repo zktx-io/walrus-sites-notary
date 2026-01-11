@@ -1,5 +1,6 @@
 import { fromBase64 } from '@mysten/sui/utils';
-import { useEffect, useState } from 'react';
+import { BookOpen, Github, ShieldCheck, TerminalSquare } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { BackgroundFx } from '../components/BackgroundFx';
@@ -15,7 +16,6 @@ import { getMvrData, MvrData } from '../utils/getMvrData';
 import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
 import { truncateMiddle } from '../utils/truncateMiddle';
 import { verifyBytecode } from '../utils/verifyBytecode';
-
 export const Mvr = () => {
   const location = useLocation();
   const query = location.pathname.replace(/^\/mvr\//, '');
@@ -31,6 +31,83 @@ export const Mvr = () => {
   const [pkgAddress, setPkgAddress] = useState<string>('');
   const [isVerified, setIsVerified] = useState<boolean>(false);
   const [digest, setDigest] = useState<string | undefined>(undefined);
+  const hasMoveCallAccess = Object.keys(params).length > 0;
+  const hasVerifierInfo = Boolean(
+    mvrData.git_info?.repository_url &&
+      mvrData.git_info?.tag &&
+      mvrData.git_info?.path,
+  );
+
+  const verifierLabel = useMemo(() => {
+    const icon = isVerified ? (
+      <ShieldCheck className="w-4 h-4 text-current transition-colors duration-150 group-hover:text-black dark:group-hover:text-white" />
+    ) : (
+      <Github className="w-4 h-4 text-current transition-colors duration-150 group-hover:text-black dark:group-hover:text-white" />
+    );
+
+    return (
+      <span className="flex items-center gap-1">
+        {icon}
+        Verifier
+      </span>
+    );
+  }, [isVerified]);
+
+  const tabs = useMemo(() => {
+    const readmeLabel = (
+      <span className="flex items-center gap-1">
+        <BookOpen className="w-4 h-4" />
+        ReadMe
+      </span>
+    );
+
+    const moveCallLabel = (
+      <span className="flex items-center gap-1">
+        <TerminalSquare className="w-4 h-4" />
+        MoveCall
+      </span>
+    );
+
+    return [
+      {
+        label: readmeLabel,
+        value: 'readme',
+        content: <MvrReadMe mvrData={mvrData} />,
+      },
+      ...(hasVerifierInfo
+        ? [
+            {
+              label: verifierLabel,
+              value: 'verifier',
+              content: (
+                <MvrCodeVerifier
+                  mvrData={mvrData}
+                  packageAddress={pkgAddress}
+                  digest={digest}
+                />
+              ),
+            },
+          ]
+        : []),
+      ...(hasMoveCallAccess
+        ? [
+            {
+              label: moveCallLabel,
+              value: 'movecall',
+              content: <MoveCall address={pkgAddress} params={params} />,
+            },
+          ]
+        : []),
+    ];
+  }, [
+    digest,
+    hasMoveCallAccess,
+    hasVerifierInfo,
+    mvrData,
+    params,
+    pkgAddress,
+    verifierLabel,
+  ]);
 
   useEffect(() => {
     setLoading(true);
@@ -99,33 +176,7 @@ export const Mvr = () => {
                 />
                 <MvrGitInfo mvrData={mvrData} />
                 <MvrMetaData mvrData={mvrData} />
-                <Tabs
-                  tabs={[
-                    {
-                      label: 'ReadMe',
-                      value: 'readme',
-                      content: <MvrReadMe mvrData={mvrData} />,
-                    },
-                    {
-                      label: 'Verifier',
-                      value: 'verifier',
-                      content: (
-                        <MvrCodeVerifier
-                          mvrData={mvrData}
-                          packageAddress={pkgAddress}
-                          digest={digest}
-                        />
-                      ),
-                    },
-                    {
-                      label: 'MoveCall',
-                      value: 'movecall',
-                      content: (
-                        <MoveCall address={pkgAddress} params={params} />
-                      ),
-                    },
-                  ]}
-                />
+                <Tabs tabs={tabs} />
               </>
             )}
           </div>

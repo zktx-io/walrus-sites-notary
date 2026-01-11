@@ -1,6 +1,7 @@
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
 import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import { bytesToHex } from '@noble/hashes/utils';
 import {
   buildMovePackage,
   fetchPackageFromGitHub,
@@ -34,10 +35,22 @@ export const verifySourceCode = async (
   txDigest: string,
   network: 'mainnet' | 'testnet' | 'devnet',
   log?: (message: string) => void,
+  githubToken?: string,
 ): Promise<VerificationResult> => {
   try {
+    if (githubToken) {
+      log?.('🔐 Using provided GitHub token for GitHub API calls');
+    } else {
+      log?.(
+        'ℹ️ No GitHub token provided; falling back to anonymous GitHub API limits',
+      );
+    }
+
     // Step 1: Fetch source code from GitHub
-    const files = await fetchPackageFromGitHub(`${repoUrl}/tree/${tag}/${path}`);
+    const files = await fetchPackageFromGitHub(
+      `${repoUrl}/tree/${tag}/${path}`,
+      { githubToken },
+    );
 
     // Step 2: Initialize Move compiler - only once
     if (!compilerInitialized) {
@@ -61,9 +74,10 @@ export const verifySourceCode = async (
       files,
       ansiColor: true,
       network,
+      githubToken,
     });
 
-    if (!buildResult.success) {
+    if ('error' in buildResult) {
       log?.('❌ Build failed');
       return {
         success: false,
@@ -73,10 +87,16 @@ export const verifySourceCode = async (
     }
 
     const builtModules = buildResult.modules || [];
-    const builtDigest = buildResult.digest;
+    const rawDigestBytes = buildResult.digest || [];
+    const builtDigest =
+      rawDigestBytes.length > 0
+        ? bytesToHex(new Uint8Array(rawDigestBytes))
+        : undefined;
 
     log?.(`✓ Build successful (${builtModules.length} modules)`);
-    log?.(`📦 Build digest: ${builtDigest?.substring(0, 16)}...`);
+    if (builtDigest) {
+      log?.(`📦 Build digest: ${builtDigest.substring(0, 16)}...`);
+    }
 
     // Step 4: Fetch deployed bytecode from Sui blockchain
     log?.('🔗 Fetching deployed bytecode from Sui blockchain...');

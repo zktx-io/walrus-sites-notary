@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Tab = {
-  label: string;
+  label: React.ReactNode;
   value: string;
   content: React.ReactNode;
 };
@@ -14,6 +14,13 @@ type TabsProps = {
 export const Tabs = ({ tabs, initial }: TabsProps) => {
   const [activeTab, setActiveTab] = useState(initial || tabs[0].value);
 
+  useEffect(() => {
+    if (tabs.length === 0) return;
+    setActiveTab((prev) =>
+      tabs.some((tab) => tab.value === prev) ? prev : tabs[0].value,
+    );
+  }, [tabs]);
+
   const currentTab = tabs.find((tab) => tab.value === activeTab);
 
   return (
@@ -22,14 +29,14 @@ export const Tabs = ({ tabs, initial }: TabsProps) => {
         {tabs.map((tab) => (
           <button
             key={tab.value}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
+            className={`group flex items-center gap-1 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.value
                 ? 'border-b-2 border-black dark:border-white text-black dark:text-white'
                 : 'text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white'
             }`}
             onClick={() => setActiveTab(tab.value)}
           >
-            {tab.label}
+            <span className="flex items-center gap-1">{tab.label}</span>
           </button>
         ))}
       </div>

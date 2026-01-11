@@ -1,7 +1,15 @@
-import { CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ChevronDown,
+  Github,
+  Loader2,
+  XCircle,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 import { MvrData } from '../utils/getMvrData';
+import { getPackageCreationTransaction } from '../utils/getPackageCreationTransaction';
 import {
   verifySourceCode,
   VerificationResult,
@@ -28,6 +36,10 @@ const ANSI_COLORS: AnsiColorMap = {
   96: '#5eead4',
   97: '#f8fafc',
 };
+
+const GITHUB_TOKEN_STORAGE_KEY = 'walrus-notary-github-token';
+const GITHUB_TOKEN_CREATE_URL =
+  'https://github.com/settings/tokens/new?scopes=repo&description=Walrus%20Notary';
 
 function renderAnsiToReact(
   text: string,
@@ -101,14 +113,85 @@ export const MvrCodeVerifier = ({
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [logs, setLogs] = useState<string[]>([]);
+  const [githubToken, setGithubToken] = useState('');
+  const [tokenVisible, setTokenVisible] = useState(false);
+  const [authExpanded, setAuthExpanded] = useState(false);
+  const [manualGitInfo, setManualGitInfo] = useState({
+    repository: mvrData.git_info?.repository_url || '',
+    tag: mvrData.git_info?.tag || '',
+    path: mvrData.git_info?.path || '',
+  });
+  const [resolvedDigest, setResolvedDigest] = useState<string | undefined>(
+    digest,
+  );
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs((prev) => [...prev, `[${timestamp}] ${message}`]);
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedToken = window.localStorage.getItem(GITHUB_TOKEN_STORAGE_KEY);
+    if (storedToken) {
+      setGithubToken(storedToken);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (githubToken) {
+      window.localStorage.setItem(GITHUB_TOKEN_STORAGE_KEY, githubToken);
+    } else {
+      window.localStorage.removeItem(GITHUB_TOKEN_STORAGE_KEY);
+    }
+  }, [githubToken]);
+
+  const openGithubTokenPage = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const popup = window.open(
+      GITHUB_TOKEN_CREATE_URL,
+      '_blank',
+      'noopener,noreferrer',
+    );
+    if (popup) {
+      popup.opener = null;
+    }
+  };
+
+  useEffect(() => {
+    setManualGitInfo({
+      repository: mvrData.git_info?.repository_url || '',
+      tag: mvrData.git_info?.tag || '',
+      path: mvrData.git_info?.path || '',
+    });
+  }, [
+    mvrData.git_info?.path,
+    mvrData.git_info?.repository_url,
+    mvrData.git_info?.tag,
+  ]);
+
+  useEffect(() => {
+    setResolvedDigest(digest);
+  }, [digest]);
+
+  const hasGitInfo = Boolean(
+    (manualGitInfo.repository.trim() || mvrData.git_info?.repository_url) &&
+      (manualGitInfo.tag.trim() || mvrData.git_info?.tag) &&
+      (manualGitInfo.path.trim() || mvrData.git_info?.path),
+  );
+
+  const canVerify = hasGitInfo;
+
   const handleVerify = async () => {
-    if (!mvrData.git_info || !digest) {
+    const repositoryUrl =
+      manualGitInfo.repository.trim() || mvrData.git_info?.repository_url;
+    const tag = manualGitInfo.tag.trim() || mvrData.git_info?.tag;
+    const path = manualGitInfo.path.trim() || mvrData.git_info?.path || '';
+
+    if (!repositoryUrl || !tag || !path) {
       setResult({
         success: false,
         message: 'Missing git information or transaction digest',
@@ -124,21 +207,60 @@ export const MvrCodeVerifier = ({
 
     try {
       addLog('🚀 Starting source code verification');
-      addLog(`📦 Repository: ${mvrData.git_info.repository_url}`);
-      addLog(`🏷️  Tag: ${mvrData.git_info.tag}`);
-      addLog(`📁 Path: ${mvrData.git_info.path}`);
+      addLog(`📦 Repository: ${repositoryUrl}`);
+      addLog(`🏷️  Tag: ${tag}`);
+      addLog(`📁 Path: ${path}`);
+
+      let txDigest = resolvedDigest;
+
+      if (!txDigest) {
+        if (!packageAddress) {
+          throw new Error('Package address is required to resolve transaction');
+        }
+        setProgress('Resolving deployment transaction...');
+        addLog(
+          '🔍 Resolving deployment transaction from package object to fetch digest',
+        );
+        txDigest = await getPackageCreationTransaction(packageAddress);
+        setResolvedDigest(txDigest);
+        addLog(`📜 Resolved transaction: ${txDigest}`);
+      }
+
+      addLog(`ℹ️ Credential digest: ${digest ?? 'not provided'}`);
+      addLog(`ℹ️ Resolved digest: ${txDigest}`);
+
+      if (digest) {
+        if (txDigest !== digest) {
+          addLog(
+            `⚠️ Credential digest (${digest}) differs from resolved transaction (${txDigest})`,
+          );
+        } else {
+          addLog(
+            '✅ Credential digest matches resolved deployment transaction',
+          );
+        }
+      } else {
+        addLog(
+          'ℹ️ No credential digest available, using resolved deployment transaction',
+        );
+      }
 
       setProgress('Fetching source code from GitHub...');
       addLog('⬇️  Fetching source code from GitHub...');
 
+      if (githubToken) {
+        addLog('🔐 GitHub token will be used for API calls');
+      }
+
       const verificationResult = await verifySourceCode(
-        mvrData.git_info.repository_url,
-        mvrData.git_info.tag,
-        mvrData.git_info.path,
+        repositoryUrl,
+        tag,
+        path,
         packageAddress,
-        digest,
+        txDigest,
         'mainnet',
         addLog,
+        githubToken || undefined,
       );
 
       if (verificationResult.success) {
@@ -162,8 +284,6 @@ export const MvrCodeVerifier = ({
     }
   };
 
-  const canVerify = mvrData.git_info && digest;
-
   return (
     <div className="p-6 rounded-lg mb-8 bg-white/3 backdrop-blur-md border border-white/5">
       <div className="mb-6">
@@ -176,6 +296,113 @@ export const MvrCodeVerifier = ({
         </p>
       </div>
 
+      <div className="bg-slate-900/40 border border-white/10 rounded-lg p-4 mb-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
+          <Github className="w-4 h-4" />
+          <span>GitHub source information</span>
+        </div>
+        <div className="grid gap-3 text-xs text-gray-300 sm:grid-cols-3">
+          <label className="flex flex-col gap-1">
+            Repository URL
+            <input
+              type="text"
+              value={manualGitInfo.repository}
+              className="w-full px-3 py-2 rounded border border-white/10 bg-slate-950/40 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="https://github.com/org/repo"
+              readOnly
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            Tag / Branch
+            <input
+              type="text"
+              value={manualGitInfo.tag}
+              className="w-full px-3 py-2 rounded border border-white/10 bg-slate-950/40 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="main"
+              readOnly
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            Path
+            <input
+              type="text"
+              value={manualGitInfo.path}
+              className="w-full px-3 py-2 rounded border border-white/10 bg-slate-950/40 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="packages/my-package"
+              readOnly
+            />
+          </label>
+        </div>
+        <p className="text-xs text-gray-400">
+          This information is populated from the MVR record. Update it to verify
+          manually when credentials are missing.
+        </p>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setAuthExpanded((prev) => !prev)}
+            className="flex w-full items-center justify-between rounded border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 hover:border-blue-400 transition"
+            aria-expanded={authExpanded}
+          >
+            <span>GitHub authentication</span>
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-200 ${
+                authExpanded ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+          <div
+            className={`mt-3 overflow-hidden transition-[max-height] duration-200 ${
+              authExpanded ? 'max-h-[480px]' : 'max-h-0'
+            }`}
+          >
+            <div className="rounded border border-white/10 bg-slate-950/40 p-3">
+              <label className="flex flex-col gap-2 text-xs text-gray-300">
+                <span className="text-gray-400">Personal access token (optional)</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type={tokenVisible ? 'text' : 'password'}
+                    value={githubToken}
+                    onChange={(event) => setGithubToken(event.target.value)}
+                    className="flex-1 min-w-[200px] px-3 py-2 text-xs rounded border border-white/10 bg-slate-950/40 text-white placeholder:text-gray-500 focus:border-blue-500 focus:outline-none"
+                    placeholder="ghp_123yourtokenhere"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setTokenVisible((prev) => !prev)}
+                    className="px-3 py-2 text-xs rounded border border-white/10 bg-white/10 text-white hover:border-blue-500"
+                  >
+                    {tokenVisible ? 'Hide' : 'Show'}
+                  </button>
+                  {githubToken && (
+                    <button
+                      type="button"
+                      onClick={() => setGithubToken('')}
+                      className="px-3 py-2 text-xs rounded border border-red-500/60 bg-red-500/10 text-red-200 hover:border-red-400"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 text-[0.65rem] text-gray-400">
+                  <span>Stored locally in this browser only.</span>
+                  <button
+                    type="button"
+                    onClick={openGithubTokenPage}
+                    className="px-2 py-1 rounded border border-white/10 text-white text-[0.65rem] hover:border-blue-500"
+                  >
+                    Create token on GitHub
+                  </button>
+                </div>
+                <p className="text-[0.65rem] text-gray-500">
+                  Use a token with minimal repo read access to avoid GitHub API rate
+                  limits when resolving Move packages.
+                </p>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
       {!canVerify ? (
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-4">
           <div className="flex items-start gap-3">
@@ -185,8 +412,8 @@ export const MvrCodeVerifier = ({
                 Cannot verify source code
               </p>
               <p className="text-yellow-300/80 text-sm mt-1">
-                {!mvrData.git_info
-                  ? 'No git information available for this package'
+                {!hasGitInfo
+                  ? 'GitHub repository, tag, and path are required to verify.'
                   : 'No transaction digest available'}
               </p>
             </div>
@@ -194,40 +421,6 @@ export const MvrCodeVerifier = ({
         </div>
       ) : (
         <>
-          {mvrData.git_info && (
-            <div className="bg-slate-800/50 rounded-lg p-4 mb-4 space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                <span className="text-gray-400 text-sm font-medium min-w-[100px]">
-                  Repository:
-                </span>
-                <a
-                  href={mvrData.git_info.repository_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 text-sm break-all"
-                >
-                  {mvrData.git_info.repository_url}
-                </a>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                <span className="text-gray-400 text-sm font-medium min-w-[100px]">
-                  Tag:
-                </span>
-                <span className="text-white text-sm font-mono">
-                  {mvrData.git_info.tag}
-                </span>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                <span className="text-gray-400 text-sm font-medium min-w-[100px]">
-                  Path:
-                </span>
-                <span className="text-white text-sm font-mono">
-                  {mvrData.git_info.path}
-                </span>
-              </div>
-            </div>
-          )}
-
           <button
             onClick={handleVerify}
             disabled={verifying}
