@@ -29,10 +29,10 @@ export const Tabs = ({ tabs, initial }: TabsProps) => {
         {tabs.map((tab) => (
           <button
             key={tab.value}
-            className={`group flex items-center gap-1 px-4 py-2 text-sm font-medium transition-colors ${
+            className={`group flex items-center gap-1 px-4 py-2 text-sm font-medium transition-colors text-white/70 hover:text-white cursor-pointer ${
               activeTab === tab.value
-                ? 'border-b-2 border-black dark:border-white text-black dark:text-white'
-                : 'text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white'
+                ? 'border-b-2 border-white text-white'
+                : 'border-b-2 border-transparent'
             }`}
             onClick={() => setActiveTab(tab.value)}
           >

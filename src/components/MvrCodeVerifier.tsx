@@ -41,6 +41,13 @@ const GITHUB_TOKEN_STORAGE_KEY = 'walrus-notary-github-token';
 const GITHUB_TOKEN_CREATE_URL =
   'https://github.com/settings/tokens/new?scopes=repo&description=Walrus%20Notary';
 
+const VERIFY_OUTER_BUTTON =
+  'group relative w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 disabled:saturate-75 rounded-lg p-[2px] bg-[#0c2f1a] overflow-hidden';
+const VERIFY_BORDER_GLOW =
+  'absolute inset-0 rounded-lg bg-[conic-gradient(at_center,_rgba(34,197,94,0.7)_0deg,_rgba(34,197,94,0.7)_360deg)] opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out pointer-events-none';
+const VERIFY_INNER_BUTTON =
+  'relative block w-full rounded-lg bg-[#0b1f14] border border-emerald-800/70 text-white font-semibold py-3 px-6 transition-all duration-300 ease-in-out flex items-center justify-center gap-2 shadow-lg group-hover:shadow-[0_0_22px_rgba(34,197,94,0.4)] group-hover:border-transparent';
+
 function renderAnsiToReact(
   text: string,
   colorMap: AnsiColorMap,
@@ -111,7 +118,6 @@ export const MvrCodeVerifier = ({
 }: MvrCodeVerifierProps) => {
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
-  const [progress, setProgress] = useState<string>('');
   const [logs, setLogs] = useState<string[]>([]);
   const [githubToken, setGithubToken] = useState('');
   const [tokenVisible, setTokenVisible] = useState(false);
@@ -203,8 +209,6 @@ export const MvrCodeVerifier = ({
     setVerifying(true);
     setResult(null);
     setLogs([]);
-    setProgress('Starting verification...');
-
     try {
       addLog('🚀 Starting source code verification');
       addLog(`📦 Repository: ${repositoryUrl}`);
@@ -217,7 +221,6 @@ export const MvrCodeVerifier = ({
         if (!packageAddress) {
           throw new Error('Package address is required to resolve transaction');
         }
-        setProgress('Resolving deployment transaction...');
         addLog(
           '🔍 Resolving deployment transaction from package object to fetch digest',
         );
@@ -245,7 +248,6 @@ export const MvrCodeVerifier = ({
         );
       }
 
-      setProgress('Fetching source code from GitHub...');
       addLog('⬇️  Fetching source code from GitHub...');
 
       if (githubToken) {
@@ -280,7 +282,6 @@ export const MvrCodeVerifier = ({
       });
     } finally {
       setVerifying(false);
-      setProgress('');
     }
   };
 
@@ -426,23 +427,19 @@ export const MvrCodeVerifier = ({
           <button
             onClick={handleVerify}
             disabled={verifying}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+            className={VERIFY_OUTER_BUTTON}
           >
-            {verifying ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <div className="flex flex-col items-center">
+            <span className={VERIFY_BORDER_GLOW} />
+            <span className={VERIFY_INNER_BUTTON}>
+              {verifying ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   <span>Verifying...</span>
-                  {progress && (
-                    <span className="text-xs text-gray-300 mt-1">
-                      {progress}
-                    </span>
-                  )}
-                </div>
-              </>
-            ) : (
-              <span>Verify Source Code</span>
-            )}
+                </>
+              ) : (
+                <span>Verify Source Code</span>
+              )}
+            </span>
           </button>
 
           {logs.length > 0 && (
