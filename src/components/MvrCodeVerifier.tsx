@@ -6,7 +6,7 @@ import {
   Loader2,
   XCircle,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 import { MvrData } from '../utils/getMvrData';
 import { getPackageCreationTransaction } from '../utils/getPackageCreationTransaction';
@@ -122,6 +122,13 @@ export const MvrCodeVerifier = ({
   const [githubToken, setGithubToken] = useState('');
   const [tokenVisible, setTokenVisible] = useState(false);
   const [authExpanded, setAuthExpanded] = useState(false);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
   const [manualGitInfo, setManualGitInfo] = useState({
     repository: mvrData.git_info?.repository_url || '',
     tag: mvrData.git_info?.tag || '',
@@ -459,6 +466,7 @@ export const MvrCodeVerifier = ({
                     {log}
                   </div>
                 ))}
+                <div ref={logEndRef} />
               </div>
             </div>
           )}
@@ -541,6 +549,35 @@ export const MvrCodeVerifier = ({
                           {result.details.totalModules}
                         </span>
                       </div>
+                      {typeof result.details.totalDependencies === 'number' && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Total Dependencies:
+                          </span>
+                          <span className="text-white font-mono">
+                            {result.details.totalDependencies}
+                          </span>
+                        </div>
+                      )}
+                      {typeof result.details.matchingDependencies ===
+                        'number' && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Matching Dependencies:
+                          </span>
+                          <span
+                            className={`font-mono font-semibold ${
+                              result.details.matchingDependencies ===
+                              result.details.totalDependencies
+                                ? 'text-green-400'
+                                : 'text-yellow-400'
+                            }`}
+                          >
+                            {result.details.matchingDependencies} /{' '}
+                            {result.details.totalDependencies}
+                          </span>
+                        </div>
+                      )}
                       {result.details.builtDigest && (
                         <div className="flex flex-col gap-1 pt-2">
                           <span className="text-gray-400">Build Digest:</span>
@@ -551,6 +588,66 @@ export const MvrCodeVerifier = ({
                       )}
                     </div>
                   </div>
+
+                  {result.details.builtDependencies &&
+                    result.details.deployedDependencies && (
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <h4 className="text-white font-semibold mb-3">
+                          Dependency Comparison
+                        </h4>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {result.details.builtDependencies.map(
+                            (dep, index) => {
+                              const matches =
+                                dep ===
+                                result.details!.deployedDependencies![index];
+                              return (
+                                <div
+                                  key={index}
+                                  className={`p-2 rounded text-xs font-mono ${
+                                    matches
+                                      ? 'bg-green-500/10 border border-green-500/30'
+                                      : 'bg-red-500/10 border border-red-500/30'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 mb-1">
+                                    {matches ? (
+                                      <CheckCircle2 className="w-3 h-3 text-green-500 flex-shrink-0" />
+                                    ) : (
+                                      <XCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                    )}
+                                    <span
+                                      className={
+                                        matches
+                                          ? 'text-green-300'
+                                          : 'text-red-300'
+                                      }
+                                    >
+                                      Dependency {index + 1}
+                                    </span>
+                                  </div>
+                                  <div className="pl-5 space-y-1">
+                                    <div className="break-all text-gray-400">
+                                      Built: {dep}
+                                    </div>
+                                    {!matches && (
+                                      <div className="break-all text-gray-400">
+                                        Deployed:{' '}
+                                        {
+                                          result.details!.deployedDependencies![
+                                            index
+                                          ]
+                                        }
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            },
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                   {result.details.builtModules &&
                     result.details.deployedModules && (

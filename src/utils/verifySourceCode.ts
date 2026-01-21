@@ -1,12 +1,12 @@
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import { fromBase64, normalizeSuiObjectId, toBase64 } from '@mysten/sui/utils';
 import { bytesToHex } from '@noble/hashes/utils';
 import {
   buildMovePackage,
   fetchPackageFromGitHub,
   initMoveCompiler,
-} from '@zktx.io/sui-move-builder';
+} from '@zktx.io/sui-move-builder/lite';
 
 export interface VerificationResult {
   success: boolean;
@@ -14,9 +14,13 @@ export interface VerificationResult {
   details?: {
     builtModules?: string[];
     deployedModules?: string[];
+    builtDependencies?: string[];
+    deployedDependencies?: string[];
     builtDigest?: string;
     matchingModules?: number;
     totalModules?: number;
+    matchingDependencies?: number;
+    totalDependencies?: number;
   };
   error?: string;
 }
@@ -87,6 +91,7 @@ export const verifySourceCode = async (
     }
 
     const builtModules = buildResult.modules || [];
+    const builtDependencies = buildResult.dependencies || [];
     const rawDigestBytes = buildResult.digest || [];
     const builtDigest =
       rawDigestBytes.length > 0
@@ -144,12 +149,21 @@ export const verifySourceCode = async (
     const publish = data.commands.find((c) => c.$kind === 'Publish');
 
     let deployedModules: string[] = [];
+    let deployedDependencies: string[] = [];
 
     if (upgrade && upgrade.Upgrade) {
       deployedModules = upgrade.Upgrade['modules'];
+      deployedDependencies = upgrade.Upgrade['dependencies'];
+      log?.(
+        `✓ Found Upgrade command with ${deployedDependencies.length} dependencies`,
+      );
       log?.(`✓ Found Upgrade command with ${deployedModules.length} modules`);
     } else if (publish && publish.Publish) {
       deployedModules = publish.Publish['modules'];
+      deployedDependencies = publish.Publish['dependencies'];
+      log?.(
+        `✓ Found Publish command with ${deployedDependencies.length} dependencies`,
+      );
       log?.(`✓ Found Publish command with ${deployedModules.length} modules`);
     } else {
       log?.('❌ No Publish or Upgrade command found');
@@ -160,8 +174,19 @@ export const verifySourceCode = async (
       };
     }
 
-    // Step 6: Compare built modules with deployed modules
-    log?.('🔍 Comparing built modules with deployed modules...');
+    const normalizedBuiltDependencies = builtDependencies.map((dep) =>
+      normalizeSuiObjectId(dep),
+    );
+    const normalizedDeployedDependencies = deployedDependencies.map((dep) =>
+      normalizeSuiObjectId(dep),
+    );
+
+    // Step 6: Compare built modules and dependencies with deployed values
+    log?.(
+      '🔍 Comparing built modules and dependencies with deployed values...',
+    );
+    log?.(`• Deployed modules (${deployedModules.length})`);
+    log?.(`• Built modules (${builtModules.length})`);
 
     if (builtModules.length !== deployedModules.length) {
       return {
@@ -170,36 +195,75 @@ export const verifySourceCode = async (
         details: {
           builtModules,
           deployedModules,
+          builtDependencies: normalizedBuiltDependencies,
+          deployedDependencies: normalizedDeployedDependencies,
           builtDigest,
           matchingModules: 0,
           totalModules: deployedModules.length,
+          matchingDependencies: 0,
+          totalDependencies: normalizedDeployedDependencies.length,
         },
       };
     }
 
-    const sortedBuilt = [...builtModules].sort();
-    const sortedDeployed = [...deployedModules].sort();
-
+    // Compare in original order; do not sort to preserve deployment order
     let matchingCount = 0;
-    for (let i = 0; i < sortedBuilt.length; i++) {
-      if (sortedBuilt[i] === sortedDeployed[i]) {
+    for (let i = 0; i < builtModules.length; i++) {
+      if (builtModules[i] === deployedModules[i]) {
         matchingCount++;
       }
     }
 
-    const allMatch = matchingCount === sortedBuilt.length;
+    if (
+      normalizedBuiltDependencies.length !==
+      normalizedDeployedDependencies.length
+    ) {
+      return {
+        success: false,
+        message: `Dependency count mismatch: built ${normalizedBuiltDependencies.length}, deployed ${normalizedDeployedDependencies.length}`,
+        details: {
+          builtModules,
+          deployedModules,
+          builtDependencies: normalizedBuiltDependencies,
+          deployedDependencies: normalizedDeployedDependencies,
+          builtDigest,
+          matchingModules: matchingCount,
+          totalModules: builtModules.length,
+          matchingDependencies: 0,
+          totalDependencies: normalizedDeployedDependencies.length,
+        },
+      };
+    }
+
+    let matchingDependencies = 0;
+    for (let i = 0; i < normalizedBuiltDependencies.length; i++) {
+      if (
+        normalizedBuiltDependencies[i] === normalizedDeployedDependencies[i]
+      ) {
+        matchingDependencies++;
+      }
+    }
+
+    const modulesMatch = matchingCount === builtModules.length;
+    const dependenciesMatch =
+      matchingDependencies === normalizedBuiltDependencies.length;
+    const allMatch = modulesMatch && dependenciesMatch;
 
     return {
       success: allMatch,
       message: allMatch
-        ? 'Source code verification successful! All modules match.'
-        : `Partial match: ${matchingCount}/${sortedBuilt.length} modules match`,
+        ? 'Source code verification successful! Modules and dependencies match.'
+        : `Partial match: modules ${matchingCount}/${builtModules.length}, dependencies ${matchingDependencies}/${normalizedBuiltDependencies.length} match`,
       details: {
-        builtModules: sortedBuilt,
-        deployedModules: sortedDeployed,
+        builtModules,
+        deployedModules,
+        builtDependencies: normalizedBuiltDependencies,
+        deployedDependencies: normalizedDeployedDependencies,
         builtDigest,
         matchingModules: matchingCount,
-        totalModules: sortedBuilt.length,
+        totalModules: builtModules.length,
+        matchingDependencies,
+        totalDependencies: normalizedBuiltDependencies.length,
       },
     };
   } catch (error) {
