@@ -50,60 +50,13 @@ export const verifySourceCode = async (
       );
     }
 
-    // Step 1: Fetch source code from GitHub
+    // Step 1: Fetch all source code files from GitHub (no filter)
     const files = await fetchPackageFromGitHub(
       `${repoUrl}/tree/${tag}/${path}`,
-      { githubToken },
+      { githubToken }, // No filter, fetch all files
     );
 
-    // Step 2: Initialize Move compiler - only once
-    if (!compilerInitialized) {
-      log?.('⚙️  Initializing Move compiler...');
-      try {
-        await initMoveCompiler();
-        compilerInitialized = true;
-        log?.('✓ Move compiler initialized');
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        log?.(`❌ WASM initialization failed: ${errorMsg}`);
-        throw new Error(`Failed to initialize Move compiler: ${errorMsg}`);
-      }
-    } else {
-      log?.('✓ Move compiler already initialized');
-    }
-
-    // Step 3: Build the Move package
-    log?.('🔨 Building Move package...');
-    const buildResult = await buildMovePackage({
-      files,
-      ansiColor: true,
-      network,
-      githubToken,
-    });
-
-    if ('error' in buildResult) {
-      log?.('❌ Build failed');
-      return {
-        success: false,
-        message: 'Failed to build Move package',
-        error: buildResult.error,
-      };
-    }
-
-    const builtModules = buildResult.modules || [];
-    const builtDependencies = buildResult.dependencies || [];
-    const rawDigestBytes = buildResult.digest || [];
-    const builtDigest =
-      rawDigestBytes.length > 0
-        ? bytesToHex(new Uint8Array(rawDigestBytes))
-        : undefined;
-
-    log?.(`✓ Build successful (${builtModules.length} modules)`);
-    if (builtDigest) {
-      log?.(`📦 Build digest: ${builtDigest.substring(0, 16)}...`);
-    }
-
-    // Step 4: Fetch deployed bytecode from Sui blockchain
+    // Step 2: Fetch deployed bytecode from Sui blockchain
     log?.('🔗 Fetching deployed bytecode from Sui blockchain...');
     const client = new SuiClient({ url: getFullnodeUrl(network) });
     const receipt = await client.getTransactionBlock({
@@ -172,6 +125,53 @@ export const verifySourceCode = async (
         message: 'No Publish or Upgrade command found in transaction',
         error: 'Invalid transaction type',
       };
+    }
+
+    // Step 3: Initialize Move compiler - only once
+    if (!compilerInitialized) {
+      log?.('⚙️  Initializing Move compiler...');
+      try {
+        await initMoveCompiler();
+        compilerInitialized = true;
+        log?.('✓ Move compiler initialized');
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log?.(`❌ WASM initialization failed: ${errorMsg}`);
+        throw new Error(`Failed to initialize Move compiler: ${errorMsg}`);
+      }
+    } else {
+      log?.('✓ Move compiler already initialized');
+    }
+
+    // Step 4: Build the Move package
+    log?.('🔨 Building Move package...');
+    const buildResult = await buildMovePackage({
+      files,
+      ansiColor: true,
+      network,
+      githubToken,
+    });
+
+    if ('error' in buildResult) {
+      log?.('❌ Build failed');
+      return {
+        success: false,
+        message: 'Failed to build Move package',
+        error: buildResult.error,
+      };
+    }
+
+    const builtModules = buildResult.modules || [];
+    const builtDependencies = buildResult.dependencies || [];
+    const rawDigestBytes = buildResult.digest || [];
+    const builtDigest =
+      rawDigestBytes.length > 0
+        ? bytesToHex(new Uint8Array(rawDigestBytes))
+        : undefined;
+
+    log?.(`✓ Build successful (${builtModules.length} modules)`);
+    if (builtDigest) {
+      log?.(`📦 Build digest: ${builtDigest.substring(0, 16)}...`);
     }
 
     const normalizedBuiltDependencies = builtDependencies.map((dep) =>
