@@ -150,6 +150,35 @@ export const verifySourceCode = async (
       ansiColor: true,
       network,
       githubToken,
+      onProgress: (event) => {
+        if (!log) return;
+        switch (event.type) {
+          case 'resolve_start':
+            log('🔍 Resolving dependencies...');
+            break;
+          case 'resolve_dep':
+            log(
+              `🔗 Resolving dep [${event.current}/${event.total}]: ${event.name} (${event.source})`,
+            );
+            break;
+          case 'resolve_complete':
+            log(
+              `✅ Dependency resolution complete (${event.count} dependencies)`,
+            );
+            break;
+          case 'compile_start':
+            log('🛠️  Compiling Move package...');
+            break;
+          case 'compile_complete':
+            log('✅ Compilation complete');
+            break;
+          case 'lockfile_generate':
+            log('🔒 Generating Move.lock file...');
+            break;
+          default:
+            log(`[progress] ${JSON.stringify(event)}`);
+        }
+      },
     });
 
     if ('error' in buildResult) {
