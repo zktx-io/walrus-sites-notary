@@ -50,3 +50,10 @@ this enables **private-keyless** CI signing in GitHub Actions.
 - [walrus-sites-provenance](https://github.com/zktx-io/walrus-sites-provenance)
 - [SLSA.dev](https://slsa.dev)
 - [Sigstore](https://www.sigstore.dev)
+
+---
+
+## Contributing
+
+Contributions are welcome via pull requests.
+Please ensure CI passes before submitting changes.
