@@ -1,5 +1,7 @@
 # 🕵️‍♀️ Notary for Walrus Sites & MVR Contracts
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12049/badge)](https://www.bestpractices.dev/projects/12049)
+
 > Verify Walrus Sites deployments and Move smart contracts with cryptographic provenance and on-chain validation.
 
 [notary.wal.app](https://notary.wal.app) is a Web3 verification frontend that validates:
