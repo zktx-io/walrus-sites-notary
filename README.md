@@ -1,7 +1,24 @@
 # 🕵️‍♀️ Notary for Walrus Sites & MVR Contracts
 
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12049/badge)](https://www.bestpractices.dev/projects/12049)
-[![OpenSSF Baseline](https://www.bestpractices.dev/projects/12049/baseline)](https://www.bestpractices.dev/projects/12049)
+<p>
+  <a href="https://www.bestpractices.dev/projects/12049">
+    <img src="https://www.bestpractices.dev/projects/12049/baseline" alt="OpenSSF Baseline">
+  </a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/zktx-io/walrus-sites-notary">
+    <img src="https://api.scorecard.dev/projects/github.com/zktx-io/walrus-sites-notary/badge" alt="OpenSSF Scorecard">
+  </a>
+  <a href="https://github.com/zktx-io/walrus-sites-notary/actions/workflows/build-test.yml">
+    <img src="https://github.com/zktx-io/walrus-sites-notary/actions/workflows/build-test.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/zktx-io/walrus-sites-notary/actions/workflows/sast.yml">
+    <img src="https://github.com/zktx-io/walrus-sites-notary/actions/workflows/sast.yml/badge.svg" alt="SAST">
+  </a>
+  <a href="./LICENSE">
+    <img src="https://img.shields.io/github/license/zktx-io/walrus-sites-notary" alt="License">
+  </a>
+</p>
+
+---
 
 > Verify Walrus Sites deployments and Move smart contracts with cryptographic provenance and on-chain validation.
 
