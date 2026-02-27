@@ -17,6 +17,7 @@ This project is maintained by repository maintainers who are responsible for sou
 - Manage release process and release notes.
 - Respond to vulnerability reports and coordinate disclosure.
 - Rotate/revoke secrets when required.
+- Review sensitive access and secret usage at least every 90 days.
 
 ### Contributor
 
@@ -34,3 +35,5 @@ This project is maintained by repository maintainers who are responsible for sou
 
 - At least one maintainer must keep documented access to release and security operations.
 - Access changes must be reflected in this file promptly.
+- Secret rotation expectations are documented in [`docs/secrets-policy.md`](./secrets-policy.md).
+- Sensitive-access review expectations are documented in [`docs/access-review-policy.md`](./access-review-policy.md).

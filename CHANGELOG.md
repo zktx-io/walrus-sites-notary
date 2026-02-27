@@ -11,6 +11,9 @@ The format is based on Keep a Changelog and semantic versioning.
 - Baseline 2 policy and governance documentation under `docs/`.
 - DCO enforcement workflow for pull request commits.
 - Release validation checks for tag/version consistency and security notes.
+- Advanced control documentation for secrets, support policy, release verification, access review, threat modeling, and VEX handling.
+- Dependency review and SAST workflows.
+- Release asset generation for checksums, SBOM, and manifest files.
 
 ### Security
 
