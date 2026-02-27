@@ -85,9 +85,9 @@ Tests are automatically executed for all pull requests via GitHub Actions.
 
 ---
 
-# 🧪 Verification Modes
+## 🧪 Verification Modes
 
-## 1️⃣ Walrus Sites Verification
+### 1️⃣ Walrus Sites Verification
 
 Route:
 
@@ -117,7 +117,7 @@ If provenance is missing:
 
 ---
 
-## 2️⃣ MVR Smart Contract Verification
+### 2️⃣ MVR Smart Contract Verification
 
 Route:
 
