@@ -69,6 +69,20 @@ Preview production build:
 
 ---
 
+## 🧪 Testing
+
+Run automated tests:
+
+    npm run test
+
+Run tests in CI mode:
+
+    npm run test:ci
+
+Tests are automatically executed for all pull requests via GitHub Actions.
+
+---
+
 # 🧪 Verification Modes
 
 ## 1️⃣ Walrus Sites Verification
