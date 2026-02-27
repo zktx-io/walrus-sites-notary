@@ -1,6 +1,7 @@
 # 🕵️‍♀️ Notary for Walrus Sites & MVR Contracts
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12049/badge)](https://www.bestpractices.dev/projects/12049)
+[![OpenSSF Baseline](https://www.bestpractices.dev/projects/12049/baseline)](https://www.bestpractices.dev/projects/12049)
 
 > Verify Walrus Sites deployments and Move smart contracts with cryptographic provenance and on-chain validation.
 
@@ -175,13 +176,32 @@ Enables private-keyless CI signing when used with:
 
 ---
 
+## 📚 Project Documentation
+
+- Dependency management: [`docs/dependencies.md`](./docs/dependencies.md)
+- Governance and sensitive access roles: [`docs/governance.md`](./docs/governance.md)
+- Design and system actors/actions: [`docs/design.md`](./docs/design.md)
+- External interfaces: [`docs/interfaces.md`](./docs/interfaces.md)
+- Security assessment: [`docs/security-assessment.md`](./docs/security-assessment.md)
+- Vulnerability publication records: [`docs/vulnerabilities.md`](./docs/vulnerabilities.md)
+- Branch protection policy: [`docs/branch-protection.md`](./docs/branch-protection.md)
+- Release process and controls: [`docs/release-process.md`](./docs/release-process.md)
+- Baseline 2 control mapping: [`docs/openssf-baseline2-mapping.md`](./docs/openssf-baseline2-mapping.md)
+- Badge operation guide: [`docs/openssf-badge-operations.md`](./docs/openssf-badge-operations.md)
+- Change history: [`CHANGELOG.md`](./CHANGELOG.md)
+
+---
+
 ## 🐛 Reporting Issues
 
 Bug reports and feature requests:
 
 https://github.com/zktx-io/walrus-sites-notary/issues
 
-Security vulnerabilities may be reported privately using GitHub Security Advisories.
+Security vulnerabilities must be reported privately:
+
+- https://github.com/zktx-io/walrus-sites-notary/security/advisories/new
+- Security policy: [`.github/SECURITY.md`](./.github/SECURITY.md)
 
 ---
 
@@ -192,6 +212,7 @@ Security vulnerabilities may be reported privately using GitHub Security Advisor
 3. Commit changes
 4. Submit a pull request
 5. Ensure CI checks pass before merge
+6. Add DCO sign-off (`git commit -s`)
 
 All changes to `main` require pull requests and CI approval.
 

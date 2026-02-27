@@ -5,12 +5,59 @@ on:
     types: [published]
 
 permissions:
-  id-token: write
-  contents: write
-  actions: read
+  contents: read
 
 jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate release tag and release notes
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+
+          TAG_NO_V="${RELEASE_TAG#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [[ ! "$TAG_NO_V" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Release tag '$RELEASE_TAG' is not semver-compatible."
+            exit 1
+          fi
+
+          if [[ "$TAG_NO_V" != "$PACKAGE_VERSION" ]]; then
+            echo "Release tag '$RELEASE_TAG' must match package.json version '$PACKAGE_VERSION'."
+            exit 1
+          fi
+
+          if [[ -z "${RELEASE_BODY//[[:space:]]/}" ]]; then
+            echo "Release notes must not be empty."
+            exit 1
+          fi
+
+          if ! grep -Eiq 'security|vulnerability|cve|none' <<< "$RELEASE_BODY"; then
+            echo "Release notes must include a security section or explicit 'none' statement."
+            exit 1
+          fi
+
   deploy-with-provenance:
+    needs:
+      - validate-release
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
     uses: zktx-io/walrus-sites-provenance/.github/workflows/deploy_with_slsa3.yml@v0.5.8
     secrets:
       GIT_SIGNER_PIN: ${{ secrets.GIT_SIGNER_PIN }}
