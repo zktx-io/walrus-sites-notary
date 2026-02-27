@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint . --fix",
     "format": "prettier --write 'src/**/*.{js,jsx,ts,tsx,json,css,md}' site.config.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ci": "vitest run"
   },
   "dependencies": {
     "@mysten/dapp-kit": "^0.19.11",
@@ -45,9 +47,11 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
+    "jsdom": "^28.1.0",
     "tailwindcss": "^4.1.4",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.24.1",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^4.0.18"
   }
 }
