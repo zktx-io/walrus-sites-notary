@@ -46,7 +46,7 @@ The CI workflow `DCO Check` enforces this requirement for every pull request com
 ## Testing Requirements
 
 - Run `npm run test:ci` and `npm run build` before opening a PR.
-- New logic should include tests that cover both expected and failure paths.
+- Major functional changes must add or update automated tests covering both expected and failure paths.
 - CI must pass before merge.
 
 ## Pull Request Review

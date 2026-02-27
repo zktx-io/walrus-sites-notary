@@ -8,6 +8,8 @@ The following checks must pass before merge:
 
 - `CI / build-test`
 - `DCO Check / dco-check`
+- `Dependency Review / dependency-review`
+- `SAST / semgrep`
 
 ## Merge Policy
 
@@ -18,3 +20,4 @@ The following checks must pass before merge:
 ## Review Policy
 
 - At least one maintainer review is required for pull requests to `main`.
+- When available, the reviewer should not be the author of the change.

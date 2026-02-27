@@ -17,6 +17,7 @@ This guide summarizes the workflow from the OpenSSF post published on 2026-02-25
 2. Use `Save and Continue` to rerun automated checks after updates.
 3. Keep repository evidence links up to date in:
    - `docs/openssf-baseline2-mapping.md`
+   - `docs/openssf-follow-on-controls-mapping.md`
    - `README.md` documentation section
 4. Re-check controls marked `?` and convert to `Met` once evidence is visible.
 
@@ -49,9 +50,13 @@ Before each submission/review cycle:
   - `docs/design.md`
   - `docs/interfaces.md`
   - `docs/security-assessment.md`
+  - `docs/threat-model.md`
 - Release/dependency policy:
   - `docs/release-process.md`
+  - `docs/release-verification.md`
   - `docs/dependencies.md`
+  - `docs/secrets-policy.md`
+  - `docs/sca-sast-policy.md`
   - `CHANGELOG.md`
 
 ## Proposed Value Automation
