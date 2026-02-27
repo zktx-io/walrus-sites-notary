@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@mysten/dapp-kit": "^0.19.11",
-    "@mysten/sui": "^1.45.2",
+    "@mysten/sui": "^2.5.0",
     "@mysten/suins": "^0.9.13",
     "@mysten/walrus": "^0.9.0",
     "@noble/hashes": "^1.7.1",
