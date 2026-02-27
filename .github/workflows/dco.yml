@@ -1,0 +1,49 @@
+name: DCO Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  dco-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Signed-off-by on every commit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          commits="$(git rev-list "$BASE_SHA..$HEAD_SHA")"
+
+          if [[ -z "$commits" ]]; then
+            echo "No commits to validate."
+            exit 0
+          fi
+
+          while IFS= read -r commit; do
+            message="$(git show -s --format=%B "$commit")"
+            if ! grep -Eiq '^Signed-off-by:[[:space:]].+<.+>$' <<< "$message"; then
+              echo "::error title=Missing DCO sign-off::Commit $commit does not include a valid Signed-off-by trailer."
+              missing=1
+            fi
+          done <<< "$commits"
+
+          if [[ "$missing" -ne 0 ]]; then
+            echo "Add sign-off for each commit with:"
+            echo "  git commit --amend -s"
+            echo "or for a series of commits:"
+            echo "  git rebase --signoff origin/main"
+            exit 1
+          fi

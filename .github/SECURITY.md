@@ -1,54 +1,51 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Private Vulnerability Reporting
 
-If you discover a security vulnerability in this project, please report it privately.
+Report vulnerabilities privately using GitHub's private reporting flow:
 
-You may use one of the following methods:
+- https://github.com/zktx-io/walrus-sites-notary/security/advisories/new
 
-- Use GitHub’s **"Report a vulnerability"** feature (GitHub Security Advisories)
-- Or contact the maintainer via email
+Do not file public issues for undisclosed vulnerabilities.
 
-**Do NOT open a public GitHub Issue for security-related reports.**
+Security contacts:
 
-When submitting a report, please include:
+- `@daoauth` (repository maintainer)
 
-- A detailed description of the vulnerability  
-- Steps to reproduce the issue  
-- Potential impact assessment  
-- Any suggested remediation, if available  
+Include the following in your report:
 
-We will acknowledge receipt of the report as soon as possible and work to resolve validated issues in a timely manner.
+- Affected component and version/tag
+- Reproduction steps or proof of concept
+- Impact and exploitability
+- Suggested mitigation (if known)
 
----
+## Coordinated Vulnerability Disclosure (CVD) Timeline
+
+For valid reports, this project targets:
+
+- Acknowledgement within 3 business days
+- Initial triage within 7 calendar days
+- Regular status updates at least every 14 calendar days until resolution
+- Public disclosure after a fix is available or after coordinated timeline agreement with the reporter
 
 ## Scope
 
 This policy applies to:
 
-- The `walrus-sites-notary` repository  
-- The deployed service at https://notary.wal.app  
-
-Reports related to supply chain integrity, build provenance verification, Sigstore validation, or on-chain anchoring mechanisms are especially important.
-
----
+- The `walrus-sites-notary` repository
+- Production deployment at `https://notary.wal.app`
+- Build provenance and signing pipeline integrations used for releases
 
 ## Supported Versions
 
-The latest release is supported and maintained.
+- Latest release: fully supported
+- Older releases: best effort only, unless explicitly stated in release notes
 
-Older versions may not receive security updates.
+## Public Disclosure
 
----
+Confirmed vulnerabilities are publicly disclosed via:
 
-## Disclosure Process
+- GitHub Security Advisories for this repository
+- Security entries in release notes/CHANGELOG
 
-We follow a responsible disclosure process.
-
-Security fixes may be prepared and deployed prior to public disclosure to protect users and ecosystem participants.
-
-Once a fix is available, we may:
-
-- Publish a security advisory  
-- Update release notes  
-- Credit reporters where appropriate (if permitted)  
+Published advisory records are tracked in [`docs/vulnerabilities.md`](../docs/vulnerabilities.md).
