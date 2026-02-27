@@ -51,9 +51,79 @@ jobs:
             exit 1
           fi
 
+  release-assets:
+    needs:
+      - validate-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      RELEASE_SHA: ${{ github.sha }}
+      RELEASE_WORKFLOW: .github/workflows/deploy.yml
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Enforce release dependency threshold
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build release assets
+        run: npm run build
+
+      - name: Generate versioned release assets
+        run: |
+          set -euo pipefail
+
+          VERSION="${RELEASE_TAG#v}"
+          ASSET_PREFIX="walrus-sites-notary-v${VERSION}"
+
+          mkdir -p release-assets
+
+          tar -czf "release-assets/${ASSET_PREFIX}-dist.tar.gz" dist
+          npm sbom --sbom-format spdx --omit=dev > "release-assets/${ASSET_PREFIX}-sbom.spdx.json"
+
+          cat > "release-assets/${ASSET_PREFIX}-manifest.json" <<EOF
+          {
+            "project": "walrus-sites-notary",
+            "release_tag": "${RELEASE_TAG}",
+            "version": "${VERSION}",
+            "commit": "${RELEASE_SHA}",
+            "workflow": "${RELEASE_WORKFLOW}",
+            "assets": [
+              "${ASSET_PREFIX}-dist.tar.gz",
+              "${ASSET_PREFIX}-sbom.spdx.json"
+            ]
+          }
+          EOF
+
+          (
+            cd release-assets
+            shasum -a 256 \
+              "${ASSET_PREFIX}-dist.tar.gz" \
+              "${ASSET_PREFIX}-sbom.spdx.json" \
+              "${ASSET_PREFIX}-manifest.json" \
+              > "${ASSET_PREFIX}-checksums.txt"
+          )
+
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber
+
   deploy-with-provenance:
     needs:
       - validate-release
+      - release-assets
     permissions:
       id-token: write
       contents: write

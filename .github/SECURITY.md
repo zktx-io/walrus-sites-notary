@@ -40,6 +40,7 @@ This policy applies to:
 
 - Latest release: fully supported
 - Older releases: best effort only, unless explicitly stated in release notes
+- End-of-support expectations are documented in [`docs/support-policy.md`](../docs/support-policy.md)
 
 ## Public Disclosure
 
