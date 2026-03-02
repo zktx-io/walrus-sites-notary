@@ -41,20 +41,9 @@ interface Payload {
   bytes: string;
 }
 
-// queryTransactionBlocks is GraphQL-only in 2.x.
-// Using GraphQL to query transactions from a sentAddress filter.
-const QUERY_TXS_BY_ADDRESS = `
-  query QueryTxsByAddress($address: SuiAddress!) {
-    transactionBlocks(
-      filter: { sentAddress: $address }
-      last: 20
-    ) {
-      nodes {
-        digest
-      }
-    }
-  }
-`;
+// gRPC-based address tx discovery via owned object previousTransaction.
+// GraphQL address.transactions is pruned aggressively on devnet;
+// listOwnedObjects is retention-stable and does not rely on indexer pruning policy.
 
 const QUERY_TX_INPUT = `
   query GetTxInput($digest: String!) {
@@ -83,40 +72,71 @@ export const Sign = () => {
 
   const sleep = (ms = 2500) => new Promise((r) => setTimeout(r, ms));
 
-  // Query the latest transaction digest from the ephemeral address using GraphQL.
+  // Check if a tx is a relayer REQUEST by reading its first Pure input as bool.
+  // REQUEST txs (from relayer) have first input = true; RESPONSE txs have false.
+  const isRequestTx = async (digest: string): Promise<boolean> => {
+    try {
+      const result = await grpcClient.getTransaction({
+        digest,
+        include: { bcs: true },
+      });
+      const tx =
+        result.$kind === 'Transaction'
+          ? result.Transaction
+          : result.FailedTransaction;
+      if (!(tx.bcs instanceof Uint8Array) || tx.bcs.length === 0) return false;
+      const parsed = Transaction.from(tx.bcs);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inputs: unknown[] = (parsed.getData() as any).inputs ?? [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const first = inputs[0] as any;
+      if (first?.$kind !== 'Pure') return false;
+      return bcs.bool().parse(fromBase64(first.Pure.bytes));
+    } catch {
+      return false;
+    }
+  };
+
+  // Discover the latest REQUEST tx from the ephemeral address using gRPC.
+  // Collects unique previousTransaction digests from all owned objects,
+  // then validates each as a request (bool=true). Returns the first match.
+  // Returns null when no request tx exists yet (waiting for relayer).
+  const getRequestDigestViaGrpc = async (
+    owner: string,
+  ): Promise<string | null> => {
+    try {
+      const resp = await grpcClient.listOwnedObjects({
+        owner,
+        limit: 50,
+        include: { previousTransaction: true },
+      });
+      const digests = [
+        ...new Set(
+          resp.objects
+            .map((obj) => obj.previousTransaction)
+            .filter((d): d is string => !!d),
+        ),
+      ];
+      for (const digest of digests) {
+        if (await isRequestTx(digest)) return digest;
+      }
+    } catch (e) {
+      console.error('[grpc][getRequestDigest] error:', e);
+    }
+    return null;
+  };
+
+  // Poll the latest REQUEST tx from the ephemeral address using gRPC object state.
   const pollLatestTransaction = async (): Promise<string | null> => {
     if (!ephemeralAddress) return null;
-
-    const r = await gqlClient.query<
-      {
-        transactionBlocks: {
-          nodes: { digest: string }[];
-        };
-      },
-      { address: string }
-    >({
-      query: QUERY_TXS_BY_ADDRESS,
-      variables: { address: ephemeralAddress },
-    });
-
-    // Check errors before data per policy.
-    if (r.errors?.length) {
-      console.error('[poll][graphql] errors:', r.errors);
-      return null;
-    }
-
-    const nodes = r.data?.transactionBlocks?.nodes ?? [];
-    if (nodes.length === 0) return null;
-
-    const latest = nodes[nodes.length - 1];
-
+    const digest = await getRequestDigestViaGrpc(ephemeralAddress);
+    if (!digest) return null;
     if (
       !lastKnownDigestRef.current ||
-      latest.digest !== lastKnownDigestRef.current
+      digest !== lastKnownDigestRef.current
     ) {
-      return latest.digest;
+      return digest;
     }
-
     return null;
   };
 
@@ -200,15 +220,26 @@ export const Sign = () => {
         );
       }
 
-      const firstBytes = new Uint8Array(firstInput.Pure.bytes);
+      const firstBytes = fromBase64(firstInput.Pure.bytes);
       if (!bcs.bool().parse(firstBytes)) {
         throw new Error('self signed transaction not allowed');
       }
 
+      // Encrypted chunks are Pure vector<u8> inputs — BCS-encoded (length prefix + data).
+      // The transferObjects recipient address is also stored as a Pure input (32 raw bytes)
+      // but is NOT BCS vector-encoded, so it fails bcs.vector(bcs.u8()).parse() and is excluded.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const encryptedChunks: Uint8Array[] = (inputs.slice(1) as any[])
-        .filter((input) => input.$kind === 'Pure')
-        .map((input) => new Uint8Array(input.Pure.bytes));
+        .filter((input) => {
+          if (input.$kind !== 'Pure') return false;
+          try {
+            bcs.vector(bcs.u8()).parse(fromBase64(input.Pure.bytes));
+            return true;
+          } catch {
+            return false; // address input or unknown — skip
+          }
+        })
+        .map((input) => fromBase64(input.Pure.bytes));
 
       if (encryptedChunks.length < 1) {
         throw new Error('Invalid encrypted structure or missing flag.');
@@ -235,7 +266,8 @@ export const Sign = () => {
       lastKnownDigestRef.current = digest;
       const decrypted = await decryptBytes(fullEncrypted, resolvedPin);
       return JSON.parse(new TextDecoder().decode(decrypted)) as Payload;
-    } catch {
+    } catch (e) {
+      console.error('[handleIncomingDigest] actual error:', e);
       throw new Error(`❌ Error while handling digest: ${digest}`);
     }
   };
@@ -362,66 +394,67 @@ export const Sign = () => {
     }
 
     const init = async () => {
+      console.log('[init] start | ephemeralAddress:', ephemeralAddress);
       while (!keypairRef.current) {
-        const r = await gqlClient.query<
-          {
-            transactionBlocks: {
-              nodes: { digest: string }[];
-            };
-          },
-          { address: string }
-        >({
-          query: QUERY_TXS_BY_ADDRESS,
-          variables: { address: ephemeralAddress },
-        });
+        console.log('[init] checking owned objects via gRPC...');
+        const digest = await getRequestDigestViaGrpc(ephemeralAddress);
+        console.log('[init] digest from owned objects:', digest);
 
-        if (r.errors?.length) {
-          console.error('[init][graphql] errors:', r.errors);
-          await sleep();
-          continue;
-        }
-
-        const data = r.data?.transactionBlocks?.nodes ?? [];
-
-        if (data.length > 0) {
-          const [first] = data;
-
-          if (first.digest) {
-            const payload = await handleIncomingDigest({
-              digest: first.digest,
-            });
+        if (digest) {
+          try {
+            // Capture before handleIncomingDigest mutates lastKnownDigestRef.
+            const isFirstTx = !lastKnownDigestRef.current;
+            console.log(
+              '[init] found digest:',
+              digest,
+              '| isFirstTx:',
+              isFirstTx,
+              '| calling handleIncomingDigest...',
+            );
+            const payload = await handleIncomingDigest({ digest });
+            console.log(
+              '[init] handleIncomingDigest done | intent:',
+              payload.intent,
+            );
             const parsed = JSON.parse(
               new TextDecoder().decode(fromBase64(payload.bytes)),
             );
             const ephemeralKeypair = Ed25519Keypair.fromSecretKey(
               parsed.secretKey,
             );
-
             keypairRef.current = ephemeralKeypair;
+            console.log('[init] keypair set');
 
-            if (data.length === 1) {
-              // dapp-kit-react: use dAppKit.signPersonalMessage directly.
+            if (isFirstTx) {
+              // Initial handshake: sign and send personal message.
+              console.log('[init] calling signPersonalMessage...');
               const { signature } = await dAppKit.signPersonalMessage({
                 message: new TextEncoder().encode(
                   toBase64(sha256(fromBase64(payload.bytes))),
                 ),
               });
+              console.log('[init] signPersonalMessage done | sending response...');
               await sendEncryptedResponse(ephemeralKeypair, {
                 intent: payload.intent,
                 signature,
               });
+              console.log('[init] sendEncryptedResponse done');
             } else {
+              // Reconnect: handshake already completed, move to monitoring.
               setStatusText('Waiting for signing requests…');
-              lastKnownDigestRef.current = data[1].digest;
             }
-          } else {
+          } catch (e) {
+            console.error('[init] failed to process digest:', digest, e);
             await sleep();
           }
         } else {
+          console.log('[init] no owned objects yet, sleeping...');
           await sleep();
         }
       }
+      console.log('[init] keypair ready, loop exit');
     };
+
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ephemeralAddress, currentAccount]);
