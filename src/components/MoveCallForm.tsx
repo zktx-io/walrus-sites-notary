@@ -1,4 +1,4 @@
-import { useCurrentAccount } from '@mysten/dapp-kit';
+import { useCurrentAccount } from '@mysten/dapp-kit-react';
 import { Play, Wrench, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 

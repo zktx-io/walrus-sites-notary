@@ -1,11 +1,8 @@
-import {
-  useSignPersonalMessage,
-  useSignTransaction,
-  useCurrentAccount,
-} from '@mysten/dapp-kit';
+import { useCurrentAccount, useDAppKit } from '@mysten/dapp-kit-react';
 import { bcs } from '@mysten/sui/bcs';
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { IntentScope, Keypair } from '@mysten/sui/cryptography';
+import { SuiGraphQLClient } from '@mysten/sui/graphql';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { fromBase64, toBase64 } from '@mysten/sui/utils';
@@ -19,6 +16,24 @@ import { Navbar } from '../components/Navbar';
 import { decryptBytes, encryptBytes } from '../utils/gitSigner';
 import { usePinPrompt } from '../utils/usePinPrompt';
 
+// Sign page is chain-fixed to devnet (ephemeral keypair handshake flow).
+// Rationale: this is a signing relay that always runs on devnet for
+// ephemeral transaction broadcast; the target chain is in the payload.
+const SIGN_NETWORK = 'devnet' as const;
+
+const GRPC_URL = 'https://fullnode.devnet.sui.io:443';
+const GQL_URL = 'https://graphql.devnet.sui.io/graphql';
+
+const grpcClient = new SuiGrpcClient({
+  network: SIGN_NETWORK,
+  baseUrl: GRPC_URL,
+});
+
+const gqlClient = new SuiGraphQLClient({
+  network: SIGN_NETWORK,
+  url: GQL_URL,
+});
+
 interface Payload {
   intent: IntentScope;
   network: 'testnet' | 'mainnet';
@@ -26,15 +41,37 @@ interface Payload {
   bytes: string;
 }
 
+// queryTransactionBlocks is GraphQL-only in 2.x.
+// Using GraphQL to query transactions from a sentAddress filter.
+const QUERY_TXS_BY_ADDRESS = `
+  query QueryTxsByAddress($address: SuiAddress!) {
+    transactionBlocks(
+      filter: { sentAddress: $address }
+      last: 20
+    ) {
+      nodes {
+        digest
+      }
+    }
+  }
+`;
+
+const QUERY_TX_INPUT = `
+  query GetTxInput($digest: String!) {
+    transaction(digest: $digest) {
+      transactionBcs
+    }
+  }
+`;
+
 export const Sign = () => {
   const [searchParams] = useSearchParams();
   const { requestDecryption, pinModal } = usePinPrompt();
   const ephemeralAddress = searchParams.get('q');
-  const client = new SuiClient({ url: getFullnodeUrl('devnet') });
 
   const currentAccount = useCurrentAccount();
-  const { mutateAsync: signTransaction } = useSignTransaction();
-  const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
+  const dAppKit = useDAppKit();
+
   const [deployedUrl, setDeployedUrl] = useState<string | undefined>(undefined);
   const [statusText, setStatusText] = useState<string>(
     'Initializing signer...',
@@ -46,20 +83,32 @@ export const Sign = () => {
 
   const sleep = (ms = 2500) => new Promise((r) => setTimeout(r, ms));
 
+  // Query the latest transaction digest from the ephemeral address using GraphQL.
   const pollLatestTransaction = async (): Promise<string | null> => {
     if (!ephemeralAddress) return null;
 
-    const { data } = await client.queryTransactionBlocks({
-      filter: { FromAddress: ephemeralAddress },
-      order: 'descending',
-      options: { showInput: true },
+    const r = await gqlClient.query<
+      {
+        transactionBlocks: {
+          nodes: { digest: string }[];
+        };
+      },
+      { address: string }
+    >({
+      query: QUERY_TXS_BY_ADDRESS,
+      variables: { address: ephemeralAddress },
     });
 
-    if (data.length === 0) {
+    // Check errors before data per policy.
+    if (r.errors?.length) {
+      console.error('[poll][graphql] errors:', r.errors);
       return null;
     }
 
-    const [latest] = data;
+    const nodes = r.data?.transactionBlocks?.nodes ?? [];
+    if (nodes.length === 0) return null;
+
+    const latest = nodes[nodes.length - 1];
 
     if (
       !lastKnownDigestRef.current ||
@@ -71,42 +120,95 @@ export const Sign = () => {
     return null;
   };
 
+  // Two-stage loader for fetching the transaction input BCS.
+  // Stage 1: gRPC getTransaction; Stage 2: GraphQL fallback.
+  const fetchTxInput = async (digest: string): Promise<Uint8Array> => {
+    let grpcReason: unknown = 'miss';
+
+    // Stage 1: gRPC
+    try {
+      const result = await grpcClient.getTransaction({
+        digest,
+        include: { bcs: true },
+      });
+      const tx =
+        result.$kind === 'Transaction'
+          ? result.Transaction
+          : result.FailedTransaction;
+      if (tx.bcs instanceof Uint8Array && tx.bcs.length > 0) {
+        return tx.bcs;
+      }
+      grpcReason = 'empty bcs';
+    } catch (e) {
+      grpcReason = e;
+    }
+
+    // Stage 2: GraphQL fallback
+    const r = await gqlClient.query<
+      { transaction: { transactionBcs: string } | null },
+      { digest: string }
+    >({
+      query: QUERY_TX_INPUT,
+      variables: { digest },
+    });
+
+    // Check errors before data per policy.
+    if (r.errors?.length) {
+      throw new Error(
+        `[loader][graphql] errors (network=${SIGN_NETWORK}, stage=graphql, digest=${digest}): ${JSON.stringify(r.errors)}`,
+      );
+    }
+
+    const bcs64 = r.data?.transaction?.transactionBcs;
+    if (!bcs64) {
+      throw new Error(
+        `[loader] transaction not found/pruned (network=${SIGN_NETWORK}, digest=${digest}) after grpc->graphql fallback; grpc=${String(grpcReason)}, graphql=null`,
+      );
+    }
+
+    return fromBase64(bcs64);
+  };
+
   const handleIncomingDigest = async ({
     digest,
   }: {
     digest: string;
   }): Promise<Payload> => {
     try {
-      const txBlock = await client.getTransactionBlock({
-        digest,
-        options: { showInput: true },
-      });
+      // Fetch raw BCS bytes via two-stage loader.
+      const bcsBytes = await fetchTxInput(digest);
 
-      const tx = txBlock.transaction?.data?.transaction;
-      if (
-        !tx ||
-        tx.kind !== 'ProgrammableTransaction' ||
-        tx.inputs.length === 0 ||
-        tx.inputs[0].type !== 'pure' ||
-        !Array.isArray(tx.inputs[0].value)
-      ) {
+      // Parse the transaction to extract input data.
+      // gRPC 2.x tx.bcs is already pure TransactionData bytes (byte[0]=0x00=V1 tag).
+      const txObj = Transaction.from(bcsBytes);
+      const txData = txObj.getData();
+
+      // In Sui 2.x, getData() returns inputs and commands directly (no ProgrammableTransaction wrapper).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const inputs: unknown[] = (txData as any).inputs ?? [];
+
+      if (inputs.length === 0) {
         throw new Error('Invalid transaction input structure.');
       }
 
-      if (!bcs.Bool.parse(new Uint8Array(tx.inputs[0].value))) {
+      // First input is a pure bool flag.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const firstInput = inputs[0] as any;
+      if (firstInput.$kind !== 'Pure') {
+        throw new Error(
+          'Invalid transaction input structure: first input not Pure.',
+        );
+      }
+
+      const firstBytes = new Uint8Array(firstInput.Pure.bytes);
+      if (!bcs.bool().parse(firstBytes)) {
         throw new Error('self signed transaction not allowed');
       }
 
-      const encryptedChunks: Uint8Array[] = tx.inputs
-        .slice(1)
-        .filter(
-          (input): input is { type: 'pure'; value: number[] } =>
-            input.type === 'pure' &&
-            typeof input === 'object' &&
-            'value' in input &&
-            Array.isArray((input as { value?: unknown }).value),
-        )
-        .map((input) => new Uint8Array(input.value));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const encryptedChunks: Uint8Array[] = (inputs.slice(1) as any[])
+        .filter((input) => input.$kind === 'Pure')
+        .map((input) => new Uint8Array(input.Pure.bytes));
 
       if (encryptedChunks.length < 1) {
         throw new Error('Invalid encrypted structure or missing flag.');
@@ -165,11 +267,18 @@ export const Sign = () => {
     tx.pure.vector('u8', fromBase64(encrypted));
     tx.transferObjects([tx.gas], ephemeralAddress);
 
-    const { digest } = await client.signAndExecuteTransaction({
-      transaction: tx,
+    // Post-submit confirmation: gRPC signAndExecuteTransaction + waitForTransaction.
+    const result = await grpcClient.signAndExecuteTransaction({
+      transaction: await tx.build({ client: grpcClient }),
       signer: ephemeralKeypair,
     });
-    await client.waitForTransaction({ digest });
+
+    const digest =
+      result.$kind === 'Transaction'
+        ? result.Transaction.digest
+        : result.FailedTransaction.digest;
+
+    await grpcClient.waitForTransaction({ digest });
     lastKnownDigestRef.current = digest;
   };
 
@@ -189,11 +298,11 @@ export const Sign = () => {
             switch (payload.intent) {
               case 'TransactionData':
                 {
-                  const { signature } = await signTransaction({
+                  // dapp-kit-react: use dAppKit.signTransaction directly (no hook).
+                  const { signature } = await dAppKit.signTransaction({
                     transaction: await Transaction.from(
                       fromBase64(payload.bytes),
                     ).toJSON(),
-                    chain: `sui:${payload.network}`,
                   });
                   await sendEncryptedResponse(keypair, {
                     intent: payload.intent,
@@ -216,9 +325,9 @@ export const Sign = () => {
                   stop = true;
                   return;
                 } else {
-                  const { signature } = await signPersonalMessage({
+                  // dapp-kit-react: use dAppKit.signPersonalMessage directly (no hook).
+                  const { signature } = await dAppKit.signPersonalMessage({
                     message: fromBase64(payload.bytes),
-                    chain: `sui:${payload.network}`,
                   });
                   await sendEncryptedResponse(keypair, {
                     intent: payload.intent,
@@ -254,11 +363,25 @@ export const Sign = () => {
 
     const init = async () => {
       while (!keypairRef.current) {
-        const { data } = await client.queryTransactionBlocks({
-          filter: { FromAddress: ephemeralAddress },
-          order: 'ascending',
-          options: { showInput: true },
+        const r = await gqlClient.query<
+          {
+            transactionBlocks: {
+              nodes: { digest: string }[];
+            };
+          },
+          { address: string }
+        >({
+          query: QUERY_TXS_BY_ADDRESS,
+          variables: { address: ephemeralAddress },
         });
+
+        if (r.errors?.length) {
+          console.error('[init][graphql] errors:', r.errors);
+          await sleep();
+          continue;
+        }
+
+        const data = r.data?.transactionBlocks?.nodes ?? [];
 
         if (data.length > 0) {
           const [first] = data;
@@ -277,11 +400,11 @@ export const Sign = () => {
             keypairRef.current = ephemeralKeypair;
 
             if (data.length === 1) {
-              const { signature } = await signPersonalMessage({
+              // dapp-kit-react: use dAppKit.signPersonalMessage directly.
+              const { signature } = await dAppKit.signPersonalMessage({
                 message: new TextEncoder().encode(
                   toBase64(sha256(fromBase64(payload.bytes))),
                 ),
-                chain: `sui:${payload.network}`,
               });
               await sendEncryptedResponse(ephemeralKeypair, {
                 intent: payload.intent,
@@ -294,6 +417,8 @@ export const Sign = () => {
           } else {
             await sleep();
           }
+        } else {
+          await sleep();
         }
       }
     };

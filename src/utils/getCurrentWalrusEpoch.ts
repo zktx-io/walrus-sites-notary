@@ -1,16 +1,17 @@
-import { SuiClient } from '@mysten/sui/client';
-import { WalrusClient } from '@mysten/walrus';
+import { walrus } from '@mysten/walrus';
 
 import { loadSiteConfig } from './loadSiteConfig';
+import { createGrpcClient, Network } from './suiClient';
 
+// Chain-fixed flow: network is loaded from app site config (caller-provided context via config).
 export const getCurrentWalrusEpoch = async (
-  client: SuiClient,
+  network: Network,
 ): Promise<number> => {
   const config = await loadSiteConfig();
-  const walrusClient = new WalrusClient({
-    network: config?.network ?? 'testnet',
-    suiClient: client,
-  });
-  const state = await walrusClient.systemState();
+  const net = (config?.network ?? network) as Network;
+
+  const client = createGrpcClient(net).$extend(walrus());
+
+  const state = await client.walrus.systemState();
   return state.committee.epoch;
 };

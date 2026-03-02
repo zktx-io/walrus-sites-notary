@@ -14,10 +14,10 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
 
@@ -63,10 +63,10 @@ jobs:
       RELEASE_WORKFLOW: .github/workflows/deploy.yml
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -128,7 +128,7 @@ jobs:
       id-token: write
       contents: write
       actions: read
-    uses: zktx-io/walrus-sites-provenance/.github/workflows/deploy_with_slsa3.yml@v0.5.8
+    uses: zktx-io/walrus-sites-provenance/.github/workflows/deploy_with_slsa3.yml@a3fbd9ac728f6ce3ed094db290e2bddacbac0ac6 # v0.5.8
     secrets:
       GIT_SIGNER_PIN: ${{ secrets.GIT_SIGNER_PIN }}
       ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}
