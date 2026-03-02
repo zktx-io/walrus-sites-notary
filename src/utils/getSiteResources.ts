@@ -213,8 +213,10 @@ export async function getAllObjects(
       include: { json: true },
     });
     for (const item of response.objects) {
-      // item is Object<Include> or Error - Error has an 'error' field
-      if ('objectId' in item && item.json) {
+      if (item instanceof Error) {
+        throw item;
+      }
+      if (item.json) {
         results.push(item.json as Record<string, unknown>);
       }
     }
