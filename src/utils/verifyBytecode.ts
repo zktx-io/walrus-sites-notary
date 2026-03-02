@@ -1,5 +1,5 @@
 import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import { fromBase64 } from '@mysten/sui/utils';
 import { blake2b } from '@noble/hashes/blake2b';
 import { sha256 } from '@noble/hashes/sha256';
 
@@ -14,8 +14,13 @@ const createDigest = (modules: string[], dependencies: string[]) => {
     items.push(digest);
   }
 
-  for (const hex of dependencies) {
-    const bytes = fromBase64(hex);
+  for (const depId of dependencies) {
+    // Dependencies are ObjectIDs as hex strings (0x-prefixed, 32 bytes).
+    // Decode as raw bytes to match Sui CLI package digest computation.
+    const hex = depId.startsWith('0x') ? depId.slice(2) : depId;
+    const bytes = new Uint8Array(
+      (hex.match(/.{1,2}/g) ?? []).map((b) => parseInt(b, 16)),
+    );
     items.push(bytes);
   }
 
@@ -40,18 +45,20 @@ const verification = (
   provenance: JsonLPayload,
 ): boolean => {
   const digest: number[] = Array.from(createDigest(modules, dependencies));
-  const hash = toBase64(
-    sha256(`${JSON.stringify({ modules, dependencies, digest })}\n`),
-  );
 
-  // NOTE: hash was formerly toHex(sha256(...)); now using toBase64 to match utils import.
-  // TODO: Confirm hash encoding format matches provenance payload (sha256 hex vs base64).
-  const match = provenance.subject.some(
+  // sha256 of bytecode.dump.json content (same format as sui move build --dump-bytecode-as-base64 output).
+  // Provenance records sha256 as hex string.
+  const rawHash = sha256(
+    `${JSON.stringify({ modules, dependencies, digest })}\n`,
+  );
+  const hashHex = Array.from(rawHash)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  return provenance.subject.some(
     (s: { name: string; digest: { sha256: string } }) =>
-      s.name === 'bytecode.dump.json' && s.digest.sha256 === hash,
+      s.name === 'bytecode.dump.json' && s.digest.sha256 === hashHex,
   );
-
-  return match;
 };
 
 // Two-stage loader for digest-based transaction loading.
@@ -200,19 +207,16 @@ export const verifyBytecode = async (
   );
 
   if (createdObjects.length === 0) {
-    console.error('Transaction not found or no created objects');
     return false;
   }
 
   const immutables = createdObjects.find((o) => o.owner === 'Immutable');
 
   if (!immutables) {
-    console.error('No immutable objects found');
     return false;
   }
 
   if (immutables.reference.objectId !== packageAddress) {
-    console.error('Package address does not match');
     return false;
   }
 

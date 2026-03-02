@@ -80,7 +80,7 @@ const getAllOwnedObjects = async (
   const out: { [blobId: string]: OwnedBlob } = {};
   let cursor: string | null | undefined = undefined;
 
-  for (; ;) {
+  for (;;) {
     const resp: {
       objects: {
         objectId: string;
@@ -241,9 +241,9 @@ export async function getAllObjects(
       blobHash: bigintToHexLE(content.value?.blob_hash ?? '0'),
       range: content.value?.range
         ? {
-          start: parseInt(content.value.range.start),
-          end: parseInt(content.value.range.end),
-        }
+            start: parseInt(content.value.range.start),
+            end: parseInt(content.value.range.end),
+          }
         : undefined,
     };
   });
