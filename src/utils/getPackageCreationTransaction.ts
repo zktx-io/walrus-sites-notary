@@ -1,5 +1,5 @@
 import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64, toBase64 } from '@mysten/sui/utils';
+import { fromBase64 } from '@mysten/sui/utils';
 
 import { createGrpcClient, createGraphQLClient, Network } from './suiClient';
 
@@ -88,8 +88,8 @@ export const getPackageCreationTransaction = async (
   const bcsBytes = await fetchTransactionBcsBytes(network, txDigest);
 
   // Parse the transaction to verify the package was created.
-  // Skip 4-byte envelope prefix.
-  const transaction = Transaction.from(toBase64(bcsBytes.slice(4)));
+  // gRPC tx.bcs is already pure TransactionData BCS — no envelope prefix to strip.
+  const transaction = Transaction.from(bcsBytes);
   const data = transaction.getData();
 
   // Check that a Publish command exists in the transaction.
