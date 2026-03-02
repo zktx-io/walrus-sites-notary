@@ -1,5 +1,5 @@
 import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64, normalizeSuiObjectId, toBase64 } from '@mysten/sui/utils';
+import { fromBase64, normalizeSuiObjectId } from '@mysten/sui/utils';
 import { bytesToHex } from '@noble/hashes/utils';
 import {
   buildMovePackage,
@@ -200,10 +200,8 @@ export const verifySourceCode = async (
       };
     }
 
-    // Skip the 4-byte envelope prefix to get TransactionData bytes.
-    const transaction = Transaction.from(
-      toBase64(rawTransactionBytes.slice(4)),
-    );
+    // rawTransactionBytes is already TransactionData BCS (byte[0]=0x00 = V1 tag).
+    const transaction = Transaction.from(rawTransactionBytes);
     const data = transaction.getData();
 
     const upgrade = data.commands.find((c) => c.$kind === 'Upgrade');

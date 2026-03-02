@@ -216,8 +216,8 @@ export const verifyBytecode = async (
     return false;
   }
 
-  // Skip the 4-byte envelope prefix to get TransactionData bytes.
-  const transaction = Transaction.from(toBase64(rawTransaction.slice(4)));
+  // rawTransaction is already TransactionData BCS (byte[0]=0x00 = V1 tag).
+  const transaction = Transaction.from(rawTransaction);
   const data = transaction.getData();
 
   const upgrade = data.commands.find((c) => c.$kind === 'Upgrade');
