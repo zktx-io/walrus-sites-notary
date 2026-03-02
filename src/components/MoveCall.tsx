@@ -1,7 +1,4 @@
-import {
-  useCurrentAccount,
-  useSignAndExecuteTransaction,
-} from '@mysten/dapp-kit';
+import { useCurrentAccount, useDAppKit } from '@mysten/dapp-kit-react';
 import { Transaction } from '@mysten/sui/transactions';
 import { Package, CheckCircle, XCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -24,8 +21,7 @@ export const MoveCall = ({
   } | null>(null);
 
   const account = useCurrentAccount();
-  const { mutateAsync: signAndExecuteTransaction } =
-    useSignAndExecuteTransaction();
+  const dAppKit = useDAppKit();
 
   const handleExcute = async (
     pkg: string,
@@ -72,10 +68,18 @@ export const MoveCall = ({
         target,
         arguments: args,
       });
-      const { digest } = await signAndExecuteTransaction({
-        chain: `sui:mainnet`, // TODO:
+
+      // dapp-kit-react: use dAppKit.signAndExecuteTransaction directly.
+      // chain is not part of SignAndExecuteTransactionArgs in dapp-kit-react (omitted by type).
+      const result = await dAppKit.signAndExecuteTransaction({
         transaction: await transaction.toJSON(),
       });
+
+      // Result is a discriminated union in 2.x; extract digest.
+      const digest =
+        result.$kind === 'Transaction'
+          ? result.Transaction.digest
+          : result.FailedTransaction.digest;
 
       console.log(digest);
       setModal({ status: 'success', message: `Executed ${target}` });

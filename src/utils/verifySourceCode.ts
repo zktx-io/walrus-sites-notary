@@ -1,4 +1,3 @@
-import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { Transaction } from '@mysten/sui/transactions';
 import { fromBase64, normalizeSuiObjectId, toBase64 } from '@mysten/sui/utils';
 import { bytesToHex } from '@noble/hashes/utils';
@@ -7,6 +6,8 @@ import {
   fetchPackageFromGitHub,
   initMoveCompiler,
 } from '@zktx.io/sui-move-builder/lite';
+
+import { createGrpcClient, createGraphQLClient, Network } from './suiClient';
 
 export interface VerificationResult {
   success: boolean;
@@ -27,6 +28,127 @@ export interface VerificationResult {
 
 // Cache to ensure compiler is initialized only once
 let compilerInitialized = false;
+
+// Two-stage loader for digest-based transaction loading.
+// Network is caller-provided (passed in from verifySourceCode for each call site).
+async function fetchTxForVerification(
+  network: Network,
+  txDigest: string,
+): Promise<{
+  rawTransactionBytes: Uint8Array;
+  createdImmutableAddress: string | null;
+}> {
+  const grpcClient = createGrpcClient(network);
+  let grpcReason: unknown = 'miss';
+
+  // Stage 1: gRPC
+  try {
+    const result = await grpcClient.getTransaction({
+      digest: txDigest,
+      include: { bcs: true, effects: true },
+    });
+    const tx =
+      result.$kind === 'Transaction'
+        ? result.Transaction
+        : result.FailedTransaction;
+    if (tx.bcs instanceof Uint8Array && tx.bcs.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const changedObjects = (tx.effects as any)?.changedObjects ?? [];
+      const immutable = changedObjects.find(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (o: any) =>
+          o.idOperation === 'Created' && o.outputOwner === 'Immutable',
+      );
+      return {
+        rawTransactionBytes: tx.bcs,
+        createdImmutableAddress: immutable?.objectId ?? immutable?.id ?? null,
+      };
+    }
+    grpcReason = 'empty bcs';
+  } catch (e) {
+    grpcReason = e;
+  }
+
+  // Stage 2: GraphQL fallback
+  const GET_TX_QUERY = `
+    query GetTxForVerify($digest: String!) {
+      transaction(digest: $digest) {
+        transactionBcs
+        effects {
+          objectChanges {
+            nodes {
+              idCreated
+              outputState {
+                address
+                owner {
+                  __typename
+                  ... on Immutable {
+                    _: __typename
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+  const gqlClient = createGraphQLClient(network);
+  const r = await gqlClient.query<
+    {
+      transaction: {
+        transactionBcs: string;
+        effects: {
+          objectChanges: {
+            nodes: {
+              idCreated: boolean;
+              outputState: {
+                address: string;
+                owner: { __typename: string } | null;
+              } | null;
+            }[];
+          };
+        };
+      } | null;
+    },
+    { digest: string }
+  >({ query: GET_TX_QUERY, variables: { digest: txDigest } });
+
+  // Check errors before data per policy.
+  if (r.errors?.length) {
+    throw new Error(
+      `[loader][graphql] errors (network=${network}, stage=graphql, digest=${txDigest}): ${JSON.stringify(r.errors)}`,
+    );
+  }
+
+  const txData = r.data?.transaction;
+  if (!txData?.transactionBcs) {
+    throw new Error(
+      `[loader] transaction not found/pruned (network=${network}, digest=${txDigest}) after grpc->graphql fallback; grpc=${String(grpcReason)}, graphql=null`,
+    );
+  }
+
+  const rawTransactionBytes = fromBase64(txData.transactionBcs);
+  // objectChanges is a connection type - access via nodes per policy.
+  const immutableNode = (
+    txData.effects?.objectChanges?.nodes ??
+    ([] as {
+      idCreated: boolean;
+      outputState?: { owner?: { __typename: string }; address: string };
+    }[])
+  ).find(
+    (n) => n.idCreated && n.outputState?.owner?.__typename === 'Immutable',
+  );
+
+  return {
+    rawTransactionBytes,
+    createdImmutableAddress: immutableNode?.outputState?.address ?? null,
+  };
+}
+
+// TODO[Gate-F]: This file uses two-stage loader with GraphQL transactionBcs and
+// objectChanges.nodes (connection type access). Runtime validation required:
+// schema introspection, query smoke check, fallback-path execution.
 
 /**
  * Verify that the deployed bytecode matches the source code from GitHub
@@ -56,36 +178,21 @@ export const verifySourceCode = async (
       { githubToken }, // No filter, fetch all files
     );
 
-    // Step 2: Fetch deployed bytecode from Sui blockchain
+    // Step 2: Fetch deployed bytecode from Sui blockchain using two-stage loader.
     log?.('🔗 Fetching deployed bytecode from Sui blockchain...');
-    const client = new SuiClient({ url: getFullnodeUrl(network) });
-    const receipt = await client.getTransactionBlock({
-      digest: txDigest,
-      options: { showRawInput: true, showEffects: true },
-    });
+    const { rawTransactionBytes, createdImmutableAddress } =
+      await fetchTxForVerification(network, txDigest);
     log?.('✓ Transaction data retrieved');
 
-    if (!receipt.effects || !receipt.effects.created) {
+    if (!createdImmutableAddress) {
       return {
         success: false,
-        message: 'Transaction not found or has no created objects',
+        message: 'Transaction not found or has no created immutable objects',
         error: 'Invalid transaction',
       };
     }
 
-    const immutables = receipt.effects.created.find(
-      (o) => o.owner === 'Immutable',
-    );
-
-    if (!immutables) {
-      return {
-        success: false,
-        message: 'No immutable objects found in transaction',
-        error: 'No package object',
-      };
-    }
-
-    if (immutables.reference.objectId !== packageAddress) {
+    if (createdImmutableAddress !== packageAddress) {
       return {
         success: false,
         message: 'Package address does not match',
@@ -93,8 +200,9 @@ export const verifySourceCode = async (
       };
     }
 
+    // Skip the 4-byte envelope prefix to get TransactionData bytes.
     const transaction = Transaction.from(
-      toBase64(fromBase64(receipt.rawTransaction!).slice(4)),
+      toBase64(rawTransactionBytes.slice(4)),
     );
     const data = transaction.getData();
 

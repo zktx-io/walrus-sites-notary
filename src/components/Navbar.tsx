@@ -1,18 +1,19 @@
 import {
-  ConnectModal,
+  ConnectButton,
   useCurrentAccount,
-  useDisconnectWallet,
-} from '@mysten/dapp-kit';
-import { Github, BookOpen, Info, Wallet, LogOut } from 'lucide-react';
-import { useState } from 'react';
+  useDAppKit,
+} from '@mysten/dapp-kit-react';
+import { Github, BookOpen, Info, LogOut } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 
 import { Search } from './Search';
 
 export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
   const currentAccount = useCurrentAccount();
-  const { mutate: disconnect } = useDisconnectWallet();
-  const [open, setOpen] = useState(false);
+  const dAppKit = useDAppKit();
+  const handleDisconnect = () => {
+    dAppKit.disconnectWallet().catch(console.error);
+  };
 
   return (
     <nav className="w-full h-16 px-4 fixed top-0 z-[1000] backdrop-blur-md bg-black/5 shadow-sm">
@@ -55,20 +56,14 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
               <button
                 className="p-2 rounded-full hover:bg-white/10 transition-colors text-white"
                 title={currentAccount.address}
-                onClick={() => disconnect()}
+                onClick={handleDisconnect}
               >
                 <LogOut className="w-5 h-5" />
               </button>
             ) : (
-              <ConnectModal
-                trigger={
-                  <button className="p-2 rounded-full hover:bg-white/10 transition-colors text-white">
-                    <Wallet className="w-5 h-5" />
-                  </button>
-                }
-                open={open}
-                onOpenChange={(isOpen) => setOpen(isOpen)}
-              />
+              // dapp-kit-react: ConnectModal does not support trigger prop.
+              // Use ConnectButton or control open state via open prop on ConnectModal.
+              <ConnectButton className="p-2 rounded-full hover:bg-white/10 transition-colors text-white" />
             )}
           </div>
         ) : (
@@ -99,20 +94,12 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
                 <button
                   className="p-2 rounded-full hover:bg-white/10 transition-colors text-white"
                   title={currentAccount.address}
-                  onClick={() => disconnect()}
+                  onClick={handleDisconnect}
                 >
                   <LogOut className="w-5 h-5" />
                 </button>
               ) : (
-                <ConnectModal
-                  trigger={
-                    <button className="p-2 rounded-full hover:bg-white/10 transition-colors text-white">
-                      <Wallet className="w-5 h-5" />
-                    </button>
-                  }
-                  open={open}
-                  onOpenChange={(isOpen) => setOpen(isOpen)}
-                />
+                <ConnectButton className="p-2 rounded-full hover:bg-white/10 transition-colors text-white" />
               )}
             </div>
           </div>

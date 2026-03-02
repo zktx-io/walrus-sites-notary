@@ -1,16 +1,10 @@
-import {
-  DynamicFieldInfo,
-  getFullnodeUrl,
-  MoveValue,
-  MultiGetObjectsParams,
-  SuiClient,
-  SuiParsedData,
-} from '@mysten/sui/client';
-import { toBase64, toHex } from '@mysten/sui/utils';
-import { SuinsClient } from '@mysten/suins';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
+import { toBase64 } from '@mysten/sui/utils';
+import { suins } from '@mysten/suins';
 
 import { getCurrentWalrusEpoch } from './getCurrentWalrusEpoch';
 import { loadSiteConfig } from './loadSiteConfig';
+import { createGrpcClient, Network } from './suiClient';
 
 const OBJECTSIZE = 50;
 
@@ -37,6 +31,7 @@ const bigintToBase64UrlLE = (num: string): string => {
     .replace(/=+$/, '');
 };
 
+const hexChars = '0123456789abcdef';
 const bigintToHexLE = (num: string): string => {
   const bytes = new Uint8Array(32);
 
@@ -46,39 +41,23 @@ const bigintToHexLE = (num: string): string => {
     temp >>= 8n;
   }
 
-  return toHex(bytes);
-};
-
-const getMoveField = (
-  content: SuiParsedData | undefined,
-  key: string,
-): string => {
-  if (content && content.dataType === 'moveObject' && content.fields !== null) {
-    return (content.fields as Record<string, MoveValue>)[key] as string;
+  let hex = '';
+  for (const b of bytes) {
+    hex += hexChars[b >> 4] + hexChars[b & 0xf];
   }
-  return '';
+  return hex;
 };
 
-type BlobStorageFields = {
+type BlobStorageJson = {
   start_epoch?: number | string;
   end_epoch?: number | string;
   storage_size?: string | number;
 };
 
-type BlobFields = {
+type BlobJson = {
   blob_id?: string | number;
   deletable?: boolean;
-  storage?: { fields?: BlobStorageFields };
-};
-
-const isMoveObject = (
-  content: SuiParsedData | null | undefined,
-): content is SuiParsedData & {
-  dataType: 'moveObject';
-  type: string;
-  fields: BlobFields;
-} => {
-  return !!content && content.dataType === 'moveObject';
+  storage?: BlobStorageJson | { fields?: BlobStorageJson };
 };
 
 const toNum = (v?: number | string): number | undefined =>
@@ -91,72 +70,106 @@ const toNum = (v?: number | string): number | undefined =>
 const toStr = (v?: number | string): string | undefined =>
   typeof v === 'string' ? v : typeof v === 'number' ? String(v) : undefined;
 
+// List all owned Blob objects using listOwnedObjects (replaces getOwnedObjects in 2.x).
+// Response shape: { objects: Object[], hasNextPage, cursor }
+// Network is caller-provided.
 const getAllOwnedObjects = async (
-  client: SuiClient,
+  client: SuiGrpcClient,
   owner: string,
 ): Promise<{ [blobId: string]: OwnedBlob }> => {
   const out: { [blobId: string]: OwnedBlob } = {};
-  let cursor: string | null = null;
+  let cursor: string | null | undefined = undefined;
 
   for (;;) {
-    const page = await client.getOwnedObjects({
+    const resp: {
+      objects: {
+        objectId: string;
+        type: string;
+        json: Record<string, unknown> | null | undefined;
+        owner: {
+          $kind: string;
+          AddressOwner?: string;
+          ConsensusAddressOwner?: { owner: string };
+        };
+      }[];
+      hasNextPage: boolean;
+      cursor: string | null;
+    } = await client.listOwnedObjects({
       owner,
       cursor,
       limit: 50,
-      options: { showContent: true },
+      include: { json: true },
     });
 
-    for (const item of page.data) {
-      const obj = item.data;
-      if (!obj) continue;
-
-      const c = obj.content;
-      if (!isMoveObject(c)) continue;
-      if (!c.type.endsWith('::blob::Blob') && !c.type.endsWith('::blobs::Blob'))
+    for (const obj of resp.objects) {
+      if (
+        !obj.type?.endsWith('::blob::Blob') &&
+        !obj.type?.endsWith('::blobs::Blob')
+      )
         continue;
 
-      const rawBlobId = toStr(c.fields.blob_id);
+      const json = obj.json as BlobJson | undefined | null;
+      if (!json) continue;
+
+      const rawBlobId = toStr(json.blob_id as string | number | undefined);
       if (!rawBlobId) continue;
 
-      const s = c.fields.storage?.fields;
+      // storage can be nested in different ways depending on JSON-RPC vs gRPC representation.
+
+      const s: BlobStorageJson | undefined =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (json.storage as any)?.fields ??
+        (json.storage as BlobStorageJson | undefined);
+
       const blobId = bigintToBase64UrlLE(rawBlobId);
       out[blobId] = {
         objectId: obj.objectId,
-        deletable: Boolean(c.fields.deletable),
+        deletable: Boolean(json.deletable),
         startEpoch: toNum(s?.start_epoch),
         endEpoch: toNum(s?.end_epoch),
         storageSize: toStr(s?.storage_size),
       };
     }
 
-    if (!page.hasNextPage || !page.nextCursor) break;
-    cursor = page.nextCursor;
+    if (!resp.hasNextPage || !resp.cursor) break;
+    cursor = resp.cursor;
   }
 
   return out;
 };
 
+// List all dynamic fields (paginated) using listDynamicFields.
+// Response shape: { dynamicFields: DynamicFieldEntry[], hasNextPage, cursor }
 const getAllDynamicFields = async (
-  client: SuiClient,
+  client: SuiGrpcClient,
   parentId: string,
 ): Promise<string[]> => {
-  const allFields: DynamicFieldInfo[] = [];
-  let cursor: string | null = null;
+  const resourceObjectIds: string[] = [];
+  let cursor: string | null | undefined = undefined;
 
   while (true) {
-    const page = await client.getDynamicFields({
+    const page = await client.listDynamicFields({
       parentId,
       cursor,
       limit: 50,
     });
-    allFields.push(...page.data);
-    if (!page.hasNextPage || !page.nextCursor) break;
-    cursor = page.nextCursor;
+
+    for (const field of page.dynamicFields) {
+      // DynamicObject fields have childId (the actual child object's ID).
+      // DynamicField fields have fieldId (the field storage object).
+      // Resource entries are DynamicObject with type ending in ::site::Resource.
+      if (field.valueType.endsWith('::site::Resource')) {
+        const id =
+          field.$kind === 'DynamicObject' ? field.childId : field.fieldId;
+        resourceObjectIds.push(id);
+      }
+    }
+
+    if (!page.hasNextPage || !page.cursor) break;
+    cursor = page.cursor;
   }
 
-  return allFields
-    .filter((item) => item.objectType.endsWith('::site::Resource'))
-    .map((item) => item.objectId);
+  return resourceObjectIds;
 };
 
 interface ResourceData {
@@ -185,36 +198,40 @@ export interface SiteResourceData {
 }
 
 export async function getAllObjects(
-  client: SuiClient,
-  { ids, ...rest }: MultiGetObjectsParams,
+  client: SuiGrpcClient,
+  ids: string[],
 ): Promise<ResourceData[]> {
   if (ids.length === 0) return [];
 
-  const results: SuiParsedData[] = [];
+  const results: Record<string, unknown>[] = [];
 
   for (let i = 0; i < ids.length; i += OBJECTSIZE) {
     const chunk = ids.slice(i, i + OBJECTSIZE);
-    const response = await client.multiGetObjects({
-      ids: chunk,
-      ...rest,
+    // getObjects in 2.x uses { objectIds, include? } and returns { objects: (Object|Error)[] }
+    const response = await client.getObjects({
+      objectIds: chunk,
+      include: { json: true },
     });
-    results.push(...response.map((item) => item.data!.content!));
+    for (const item of response.objects) {
+      // item is Object<Include> or Error - Error has an 'error' field
+      if ('objectId' in item && item.json) {
+        results.push(item.json as Record<string, unknown>);
+      }
+    }
   }
 
-  return results.map((item) => {
-    const content = item as unknown as {
-      fields: {
-        id: { id: string };
-        value: {
-          fields: {
-            path: string;
-            blob_id: string;
-            blob_hash: string;
-            range?: {
-              fields: {
-                start: string;
-                end: string;
-              };
+  return results.map((json) => {
+    const content = json as {
+      id: { id: string };
+      value: {
+        fields: {
+          path: string;
+          blob_id: string;
+          blob_hash: string;
+          range?: {
+            fields: {
+              start: string;
+              end: string;
             };
           };
         };
@@ -222,14 +239,14 @@ export async function getAllObjects(
     };
 
     return {
-      id: content.fields.id.id,
-      path: content.fields.value.fields.path,
-      blobId: bigintToBase64UrlLE(content.fields.value.fields.blob_id),
-      blobHash: bigintToHexLE(content.fields.value.fields.blob_hash),
-      range: content.fields.value.fields.range
+      id: content.id?.id ?? '',
+      path: content.value?.fields?.path ?? '',
+      blobId: bigintToBase64UrlLE(content.value?.fields?.blob_id ?? '0'),
+      blobHash: bigintToHexLE(content.value?.fields?.blob_hash ?? '0'),
+      range: content.value?.fields?.range
         ? {
-            end: parseInt(content.fields.value.fields.range?.fields.end),
-            start: parseInt(content.fields.value.fields.range?.fields.start),
+            end: parseInt(content.value.fields.range.fields.end),
+            start: parseInt(content.value.fields.range.fields.start),
           }
         : undefined,
     };
@@ -241,12 +258,13 @@ export const getSiteResources = async (
 ): Promise<SiteResourceData> => {
   try {
     const config = await loadSiteConfig();
-    const network = config?.network || 'testnet';
-    const suiClient = new SuiClient({ url: getFullnodeUrl(network) });
-    const suinsClient = new SuinsClient({
-      client: suiClient,
-      network: network,
-    });
+    const network = (config?.network || 'testnet') as Network;
+
+    // Network is caller-provided via site config (not a hardcoded module-scope literal).
+    const grpcClient = createGrpcClient(network);
+
+    // SuiNS 1.x: use SuiGrpcClient extended with suins().
+    const suinsClient = createGrpcClient(network).$extend(suins());
 
     let siteId = '';
 
@@ -257,37 +275,39 @@ export const getSiteResources = async (
           .toString(16)}`,
       ).toString(16);
     } else {
-      const nameRecord = await suinsClient.getNameRecord(`${prefix}.sui`);
+      const nameRecord = await suinsClient.suins.getNameRecord(`${prefix}.sui`);
       if (!nameRecord || !nameRecord.walrusSiteId) {
         throw new Error('Failed to resolve name service address.');
       }
       siteId = nameRecord.walrusSiteId;
     }
 
-    const siteObject = await suiClient.getObject({
-      id: siteId,
-      options: { showContent: true, showOwner: true },
+    // getObject in 2.x uses { objectId } and returns { object: Object<Include> }
+    const siteObjectResp = await grpcClient.getObject({
+      objectId: siteId,
+      include: { json: true },
     });
+    const siteObj = siteObjectResp.object;
 
-    if (
-      !siteObject ||
-      !siteObject.data ||
-      siteObject.data.content!.dataType !== 'moveObject' ||
-      !siteObject.data.content!.type.endsWith('::site::Site')
-    ) {
+    if (!siteObj || !siteObj.type?.endsWith('::site::Site')) {
       throw new Error('Failed to fetch site object.');
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const siteObjOwner = (siteObject.data.owner as any).AddressOwner!;
+    const siteJson = siteObj.json as Record<string, unknown> | null;
 
-    const blobs = await getAllOwnedObjects(suiClient, siteObjOwner);
+    // Owner is a discriminated union: { $kind: 'AddressOwner', AddressOwner: string } etc.
+    const ownerVal = siteObj.owner;
+    const siteObjOwner =
+      ownerVal?.$kind === 'AddressOwner'
+        ? ownerVal.AddressOwner
+        : ownerVal?.$kind === 'ConsensusAddressOwner'
+          ? ownerVal.ConsensusAddressOwner.owner
+          : '';
 
-    const ids = await getAllDynamicFields(suiClient, siteId);
-    const resources = await getAllObjects(suiClient, {
-      ids,
-      options: { showContent: true },
-    });
+    const blobs = await getAllOwnedObjects(grpcClient, siteObjOwner);
+
+    const ids = await getAllDynamicFields(grpcClient, siteId);
+    const resources = await getAllObjects(grpcClient, ids);
 
     resources.sort((a, b) => {
       const priority = (path: string) => {
@@ -307,17 +327,20 @@ export const getSiteResources = async (
       return a.path.localeCompare(b.path);
     });
 
-    const epoch = await getCurrentWalrusEpoch(suiClient);
+    const epoch = await getCurrentWalrusEpoch(network);
+
+    const getField = (key: string): string =>
+      typeof siteJson?.[key] === 'string' ? (siteJson[key] as string) : '';
 
     return {
       id: siteId,
       siteObjOwner,
-      creator: getMoveField(siteObject.data.content!, 'creator'),
-      description: getMoveField(siteObject.data.content!, 'description'),
-      imageUrl: getMoveField(siteObject.data.content!, 'image_url'),
-      link: getMoveField(siteObject.data.content!, 'link'),
-      name: getMoveField(siteObject.data.content!, 'name'),
-      projectUrl: getMoveField(siteObject.data.content!, 'project_url'),
+      creator: getField('creator'),
+      description: getField('description'),
+      imageUrl: getField('image_url'),
+      link: getField('link'),
+      name: getField('name'),
+      projectUrl: getField('project_url'),
       resources,
       epoch,
       blobs,

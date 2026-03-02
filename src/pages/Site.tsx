@@ -1,4 +1,4 @@
-import { useSignAndExecuteTransaction } from '@mysten/dapp-kit';
+import { useDAppKit } from '@mysten/dapp-kit-react';
 import {
   Hash,
   User,
@@ -43,8 +43,7 @@ export const Site = () => {
   const location = useLocation();
   const query = location.pathname.replace(/^\/site\//, '');
 
-  const { mutateAsync: signAndExecuteTransaction } =
-    useSignAndExecuteTransaction();
+  const dAppKit = useDAppKit();
   const [network, setNetwork] = useState('testnet');
   const [loading, setLoading] = useState(true);
   const [provenance, setProvenance] = useState<JsonLPayload | undefined>(
@@ -101,20 +100,10 @@ export const Site = () => {
     try {
       setLoading(true);
       const transaction = await extendEpoch(opts);
-      await new Promise<void>((resolve, reject) => {
-        signAndExecuteTransaction(
-          { transaction, chain: `sui:${network}` },
-          {
-            onSuccess: async () => {
-              await fetchData();
-              resolve();
-            },
-            onError: (error) => {
-              reject(error);
-            },
-          },
-        );
+      await dAppKit.signAndExecuteTransaction({
+        transaction,
       });
+      await fetchData();
     } catch (e) {
       setLoading(false);
       throw e;
