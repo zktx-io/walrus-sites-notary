@@ -179,8 +179,8 @@ export const Sign = () => {
       const bcsBytes = await fetchTxInput(digest);
 
       // Parse the transaction to extract input data.
-      // Skip 4-byte envelope prefix to get TransactionData bytes.
-      const txObj = Transaction.from(toBase64(bcsBytes.slice(4)));
+      // gRPC 2.x tx.bcs is already pure TransactionData bytes (byte[0]=0x00=V1 tag).
+      const txObj = Transaction.from(bcsBytes);
       const txData = txObj.getData();
 
       // In Sui 2.x, getData() returns inputs and commands directly (no ProgrammableTransaction wrapper).

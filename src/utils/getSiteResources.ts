@@ -80,7 +80,7 @@ const getAllOwnedObjects = async (
   const out: { [blobId: string]: OwnedBlob } = {};
   let cursor: string | null | undefined = undefined;
 
-  for (;;) {
+  for (; ;) {
     const resp: {
       objects: {
         objectId: string;
@@ -221,33 +221,29 @@ export async function getAllObjects(
   }
 
   return results.map((json) => {
+    // gRPC 2.x returns flat JSON (no .fields wrapper).
+    // Old JSON-RPC shape: { id: { id }, value: { fields: { path, blob_id, ... } } }
+    // New gRPC shape:     { id: string,  value: { path, blob_id, range: { start, end } } }
     const content = json as {
-      id: { id: string };
+      id: string;
       value: {
-        fields: {
-          path: string;
-          blob_id: string;
-          blob_hash: string;
-          range?: {
-            fields: {
-              start: string;
-              end: string;
-            };
-          };
-        };
+        path: string;
+        blob_id: string;
+        blob_hash: string;
+        range?: { start: string; end: string };
       };
     };
 
     return {
-      id: content.id?.id ?? '',
-      path: content.value?.fields?.path ?? '',
-      blobId: bigintToBase64UrlLE(content.value?.fields?.blob_id ?? '0'),
-      blobHash: bigintToHexLE(content.value?.fields?.blob_hash ?? '0'),
-      range: content.value?.fields?.range
+      id: content.id ?? '',
+      path: content.value?.path ?? '',
+      blobId: bigintToBase64UrlLE(content.value?.blob_id ?? '0'),
+      blobHash: bigintToHexLE(content.value?.blob_hash ?? '0'),
+      range: content.value?.range
         ? {
-            end: parseInt(content.value.fields.range.fields.end),
-            start: parseInt(content.value.fields.range.fields.start),
-          }
+          start: parseInt(content.value.range.start),
+          end: parseInt(content.value.range.end),
+        }
         : undefined,
     };
   });
@@ -305,7 +301,6 @@ export const getSiteResources = async (
           : '';
 
     const blobs = await getAllOwnedObjects(grpcClient, siteObjOwner);
-
     const ids = await getAllDynamicFields(grpcClient, siteId);
     const resources = await getAllObjects(grpcClient, ids);
 
