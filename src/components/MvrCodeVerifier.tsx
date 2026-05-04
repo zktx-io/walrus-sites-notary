@@ -529,26 +529,51 @@ export const MvrCodeVerifier = ({
                       Verification Details
                     </h4>
                     <div className="space-y-2 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Total Modules:</span>
-                        <span className="text-white font-mono">
-                          {result.details.totalModules}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Matching Modules:</span>
-                        <span
-                          className={`font-mono font-semibold ${
-                            result.details.matchingModules ===
-                            result.details.totalModules
-                              ? 'text-green-400'
-                              : 'text-yellow-400'
-                          }`}
-                        >
-                          {result.details.matchingModules} /{' '}
-                          {result.details.totalModules}
-                        </span>
-                      </div>
+                      {result.details.deploymentKind && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Deployment Type:
+                          </span>
+                          <span className="text-white font-mono capitalize">
+                            {result.details.deploymentKind}
+                          </span>
+                        </div>
+                      )}
+                      {result.details.buildIntent && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Build Intent:</span>
+                          <span className="text-white font-mono capitalize">
+                            {result.details.buildIntent}
+                          </span>
+                        </div>
+                      )}
+                      {typeof result.details.totalModules === 'number' && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Total Modules:</span>
+                          <span className="text-white font-mono">
+                            {result.details.totalModules}
+                          </span>
+                        </div>
+                      )}
+                      {typeof result.details.matchingModules === 'number' &&
+                        typeof result.details.totalModules === 'number' && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-400">
+                              Matching Modules:
+                            </span>
+                            <span
+                              className={`font-mono font-semibold ${
+                                result.details.matchingModules ===
+                                result.details.totalModules
+                                  ? 'text-green-400'
+                                  : 'text-yellow-400'
+                              }`}
+                            >
+                              {result.details.matchingModules} /{' '}
+                              {result.details.totalModules}
+                            </span>
+                          </div>
+                        )}
                       {typeof result.details.totalDependencies === 'number' && (
                         <div className="flex justify-between items-center">
                           <span className="text-gray-400">
@@ -575,6 +600,16 @@ export const MvrCodeVerifier = ({
                           >
                             {result.details.matchingDependencies} /{' '}
                             {result.details.totalDependencies}
+                          </span>
+                        </div>
+                      )}
+                      {result.details.upgradePackageId && (
+                        <div className="flex flex-col gap-1 pt-2">
+                          <span className="text-gray-400">
+                            Upgrade Package ID:
+                          </span>
+                          <span className="text-white font-mono text-xs break-all bg-slate-900/50 p-2 rounded">
+                            {result.details.upgradePackageId}
                           </span>
                         </div>
                       )}

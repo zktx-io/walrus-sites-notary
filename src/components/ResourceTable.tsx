@@ -3,19 +3,26 @@ import { ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
 import { OwnedBlob } from '../utils/getSiteResources';
-import { JsonLPayload } from '../utils/parseJsonl';
+import { ArtifactReport } from '../verification/types';
 
 import { ExtendBlobsLauncher } from './ExtendBlobsModal';
 
+type ResourceStatus =
+  | 'Integrity checked'
+  | 'Hash mismatch'
+  | 'Unknown'
+  | 'Site config file'
+  | 'Provenance file';
+
 export const ResourceTable = ({
-  provenance,
+  artifactReport,
   siteObjOwner,
   epoch,
   resources,
   blobs,
   onExtend,
 }: {
-  provenance: JsonLPayload | undefined;
+  artifactReport?: ArtifactReport;
   siteObjOwner: string;
   epoch: number;
   resources: {
@@ -41,34 +48,30 @@ export const ResourceTable = ({
     currentPage * itemsPerPage,
   );
 
-  const getVerificationStatus = (res: {
-    path: string;
-    blobHash: string;
-  }):
-    | 'Verified'
-    | 'Not verified'
-    | 'Unknown'
-    | 'Site config file'
-    | 'Provenance file' => {
-    if (!provenance) {
-      return 'Unknown';
-    }
-
-    if (res.path === '/.well-known/walrus-sites.intoto.jsonl') {
+  const getVerificationStatus = (path: string): ResourceStatus => {
+    if (path === '/.well-known/walrus-sites.intoto.jsonl') {
       return 'Provenance file';
     }
 
-    if (res.path === '/.well-known/site.config.json') {
+    if (path === '/.well-known/site.config.json') {
       return 'Site config file';
     }
 
-    const match = provenance.subject.some(
-      (s: { name: string; digest: { sha256: string } }) =>
-        (s.name.startsWith('/') ? s.name : `/${s.name}`) === res.path &&
-        s.digest.sha256 === res.blobHash,
+    if (!artifactReport?.resources) {
+      return 'Unknown';
+    }
+
+    const resourceReport = artifactReport.resources.find(
+      (resource) => resource.path === path,
     );
 
-    return match ? 'Verified' : 'Not verified';
+    if (!resourceReport) {
+      return 'Unknown';
+    }
+
+    return resourceReport.status === 'hash_matched'
+      ? 'Integrity checked'
+      : 'Hash mismatch';
   };
 
   const renderRemainingEpoch = (
@@ -111,7 +114,7 @@ export const ResourceTable = ({
         </thead>
         <tbody>
           {paginatedResources.map((res) => {
-            const status = getVerificationStatus(res);
+            const status = getVerificationStatus(res.path);
             const ownedBlob = blobs[res.blobId];
             const { text: remainingText, expired } =
               renderRemainingEpoch(ownedBlob);
@@ -154,10 +157,10 @@ export const ResourceTable = ({
                   {remainingText}
                 </td>
                 <td className="py-2 text-right overflow-hidden text-ellipsis whitespace-nowrap">
-                  {status === 'Verified' && (
+                  {status === 'Integrity checked' && (
                     <span className="text-green-400">{status}</span>
                   )}
-                  {status === 'Not verified' && (
+                  {status === 'Hash mismatch' && (
                     <span className="text-yellow-400">{status}</span>
                   )}
                   {status === 'Unknown' && (

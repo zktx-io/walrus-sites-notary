@@ -24,12 +24,18 @@ export interface MvrData {
 const joinChunks = (prefix: string, metadata: Record<string, string>) => {
   const chunks = Object.entries(metadata)
     .filter(([key]) => key.startsWith(prefix))
-    .sort(([a], [b]) => {
-      const aIndex = parseInt(a.split('_')[1], 10);
-      const bIndex = parseInt(b.split('_')[1], 10);
-      return aIndex - bIndex;
+    .map(([key, value]) => {
+      const parts = key.split('_');
+      return {
+        index: parseInt(parts[parts.length - 1] ?? '', 10),
+        value,
+      };
     })
-    .map(([, value]) => value);
+    .filter(({ index }) => Number.isFinite(index))
+    .sort((a, b) => {
+      return a.index - b.index;
+    })
+    .map(({ value }) => value);
 
   return chunks.length > 0 ? chunks.join('') : undefined;
 };

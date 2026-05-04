@@ -1,4 +1,3 @@
-import { fromBase64 } from '@mysten/sui/utils';
 import { BookOpen, Github, ShieldCheck, TerminalSquare } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -12,25 +11,26 @@ import { MvrReadMe } from '../components/MvrReadMe';
 import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
 import { Tabs } from '../components/Tabs';
-import { getMvrData, MvrData } from '../utils/getMvrData';
-import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
+import { MvrData } from '../utils/getMvrData';
 import { truncateMiddle } from '../utils/truncateMiddle';
-import { verifyBytecode } from '../utils/verifyBytecode';
+import { verifyMvrInBrowser } from '../verification/mvr';
+import { VerificationReport } from '../verification/types';
+
 export const Mvr = () => {
   const location = useLocation();
   const query = location.pathname.replace(/^\/mvr\//, '');
 
   const [loading, setLoading] = useState(true);
-  const [provenance, setProvenance] = useState<JsonLPayload | undefined>(
-    undefined,
-  );
+  const [verificationReport, setVerificationReport] = useState<
+    VerificationReport | undefined
+  >(undefined);
   const [mvrData, setMvrData] = useState<MvrData>({});
   const [params, setParams] = useState<{
     [pkg: string]: { name: string; params: { name: string; type: string }[] }[];
   }>({});
   const [pkgAddress, setPkgAddress] = useState<string>('');
-  const [isVerified, setIsVerified] = useState<boolean>(false);
   const [digest, setDigest] = useState<string | undefined>(undefined);
+  const artifactMatched = Boolean(verificationReport?.artifact.valid);
   const hasMoveCallAccess = Object.keys(params).length > 0;
   const hasVerifierInfo = Boolean(
     mvrData.git_info?.repository_url &&
@@ -39,7 +39,7 @@ export const Mvr = () => {
   );
 
   const verifierLabel = useMemo(() => {
-    const icon = isVerified ? (
+    const icon = artifactMatched ? (
       <ShieldCheck className="w-4 h-4 text-current transition-colors duration-150 group-hover:text-black dark:group-hover:text-white" />
     ) : (
       <Github className="w-4 h-4 text-current transition-colors duration-150 group-hover:text-black dark:group-hover:text-white" />
@@ -51,7 +51,7 @@ export const Mvr = () => {
         Verifier
       </span>
     );
-  }, [isVerified]);
+  }, [artifactMatched]);
 
   const tabs = useMemo(() => {
     const readmeLabel = (
@@ -111,7 +111,11 @@ export const Mvr = () => {
 
   useEffect(() => {
     setLoading(true);
-    setProvenance(undefined);
+    setVerificationReport(undefined);
+    setMvrData({});
+    setParams({});
+    setPkgAddress('');
+    setDigest(undefined);
 
     if (!query) {
       setLoading(false);
@@ -120,27 +124,14 @@ export const Mvr = () => {
 
     const fetchData = async () => {
       try {
-        const mvrData = await getMvrData(query);
-        setMvrData(mvrData.mvr);
-        setParams(mvrData.params || {});
-        setPkgAddress(mvrData.packageAddress);
-        setDigest(mvrData.digest);
-        if (mvrData.provenance && mvrData.digest) {
-          const jsonl = parseJsonl(
-            new TextDecoder().decode(fromBase64(mvrData.provenance)),
-          );
-          setProvenance(jsonl);
-          const verified = await verifyBytecode(
-            mvrData.packageAddress,
-            mvrData.digest,
-            jsonl,
-          );
-          setIsVerified(verified);
-        } else {
-          setProvenance(undefined);
-        }
+        const result = await verifyMvrInBrowser(query);
+        setMvrData(result.mvr);
+        setParams(result.params || {});
+        setPkgAddress(result.packageAddress);
+        setDigest(result.digest);
+        setVerificationReport(result.report);
       } catch {
-        setProvenance(undefined);
+        setVerificationReport(undefined);
       } finally {
         setLoading(false);
       }
@@ -170,10 +161,7 @@ export const Mvr = () => {
                   </div>
                 </h1>
 
-                <ProvenanceCard
-                  provenance={provenance}
-                  isFullyVerified={isVerified}
-                />
+                <ProvenanceCard report={verificationReport} />
                 <MvrGitInfo mvrData={mvrData} />
                 <MvrMetaData mvrData={mvrData} />
                 <Tabs tabs={tabs} />

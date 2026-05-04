@@ -1,5 +1,27 @@
 import { fromBase64 } from '@mysten/sui/utils';
 
+export interface SigstoreBundle {
+  mediaType?: string;
+  dsseEnvelope?: {
+    payload?: string;
+    payloadType?: string;
+    signatures?: Array<{
+      keyid: string;
+      sig: string;
+    }>;
+  };
+  verificationMaterial?: {
+    tlogEntries?: Array<{
+      logIndex: number;
+      logID: { keyid: string };
+      integratedTime: number;
+      [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface JsonLPayload {
   _type: 'https://in-toto.io/Statement/v0.1';
   predicateType: 'https://slsa.dev/provenance/v0.2';
@@ -66,26 +88,47 @@ export interface JsonLPayload {
   }>;
 }
 
-export const parseJsonl = (jsonl: string): JsonLPayload => {
+export interface ParsedProvenance {
+  raw: string;
+  bundle: SigstoreBundle;
+  statement: JsonLPayload;
+}
+
+const normalizeJsonl = (jsonl: string): string =>
+  jsonl
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F]+/g, '')
+    .replace(/\\(?!["\\/bfnrtu])/g, '\\\\')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F]/g, '')
+    .trim();
+
+export const parseJsonlBundle = (jsonl: string): ParsedProvenance => {
   try {
-    const parsed = JSON.parse(
-      jsonl
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u001F]+/g, '')
-        .replace(/\\(?!["\\/bfnrtu])/g, '\\\\')
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\x00-\x1F]/g, '')
-        .trim(),
-    );
+    const raw = normalizeJsonl(jsonl);
+    const parsed = JSON.parse(raw) as SigstoreBundle;
+    if (!parsed.dsseEnvelope?.payload) {
+      throw new Error('Missing DSSE payload');
+    }
+
     const payload = new TextDecoder().decode(
       fromBase64(parsed.dsseEnvelope.payload),
     );
-    return {
+    const statement = {
       ...JSON.parse(payload),
-      signatures: parsed.dsseEnvelope.signatures,
-      tlogEntries: parsed.verificationMaterial.tlogEntries,
+      signatures: parsed.dsseEnvelope.signatures ?? [],
+      tlogEntries: parsed.verificationMaterial?.tlogEntries,
     } as JsonLPayload;
+
+    return {
+      raw,
+      bundle: parsed,
+      statement,
+    };
   } catch (error) {
     throw new Error(`Failed to parse JSONL: ${error}`);
   }
 };
+
+export const parseJsonl = (jsonl: string): JsonLPayload =>
+  parseJsonlBundle(jsonl).statement;

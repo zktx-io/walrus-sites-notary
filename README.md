@@ -20,21 +20,21 @@
 
 ---
 
-> Verify Walrus Sites deployments and Move smart contracts with cryptographic provenance and on-chain validation.
+> Inspect Walrus Sites deployments and Move smart contracts with provenance-linked artifact integrity checks.
 
 [notary.wal.app](https://notary.wal.app) is a Web3 verification frontend that validates:
 
 - Walrus Sites deployments
 - Move smart contracts deployed via MVR (Move Registry)
 
-It uses SLSA provenance, Sigstore verification, and on-chain data anchoring to provide transparent deployment integrity.
+It uses SLSA provenance links and on-chain data anchoring to show deployment integrity. Full Sigstore verification is intentionally not delegated to a backend; the frontend only marks deployments fully verified once browser-native Sigstore verification is implemented.
 
 ---
 
 ## 🎯 Problem It Solves
 
 Decentralized deployments often lack verifiable proof of build origin and artifact integrity.  
-Notary provides cryptographic verification of deployed websites and smart contracts by validating provenance files and confirming trusted builders against on-chain state.
+Notary compares deployed artifacts against provenance-declared hashes and shows source/build metadata without introducing an opaque verifier backend.
 
 ---
 
@@ -43,16 +43,16 @@ Notary provides cryptographic verification of deployed websites and smart contra
 For Walrus Sites:
 - Parses `.well-known/walrus-sites.intoto.jsonl`
 - Validates each resource hash against its on-chain blob
-- Verifies Sigstore provenance signatures
+- Links Sigstore/Rekor provenance entries for inspection
 - Displays repository, workflow, and commit metadata
 
 For MVR Contracts:
 - Fetches registered contract metadata
 - Validates deployed bytecode against build provenance
-- Verifies Sigstore signatures
+- Links Sigstore/Rekor provenance entries for inspection
 - Displays repository, commit, workflow, and registry metadata
 
-Deployments are clearly marked **Verified** or **Unverified**.
+Until browser-native Sigstore verification is complete, deployments are shown as **Integrity checked** or **Unverified**, with a public Sigstore ledger link when available.
 
 ---
 
@@ -122,11 +122,11 @@ Process:
 - Resolves SuiNS name
 - Fetches `.well-known/walrus-sites.intoto.jsonl`
 - Compares declared resource hashes with on-chain blobs
-- Verifies provenance signature
+- Links public Sigstore/Rekor provenance material
 
 Output:
 - Resource-level hash validation
-- Provenance verification status
+- Provenance link status
 - Builder metadata (repo, commit, workflow)
 
 If provenance is missing:
@@ -153,12 +153,12 @@ Process:
 - Fetches package metadata from MVR
 - Retrieves deployed on-chain bytecode
 - Resolves associated SLSA provenance
-- Verifies Sigstore signature
 - Compares deployed bytecode hash with build artifact
+- Links public Sigstore/Rekor provenance material
 
 Output:
 - Bytecode hash validation result
-- Provenance verification status
+- Provenance link status
 - Builder metadata (repository, commit, workflow)
 - Registry registration details
 
