@@ -16,28 +16,11 @@ import { Navbar } from '../components/Navbar';
 import { ProvenanceCard } from '../components/ProvenanceCard';
 import { ResourceTable } from '../components/ResourceTable';
 import { extendEpoch } from '../utils/extendEpoch';
-import { getSiteResources, SiteResourceData } from '../utils/getSiteResources';
+import { SiteResourceData } from '../utils/getSiteResources';
 import { loadSiteConfig } from '../utils/loadSiteConfig';
-import { JsonLPayload, parseJsonl } from '../utils/parseJsonl';
-import { readBlob } from '../utils/readBlob';
 import { truncateMiddle } from '../utils/truncateMiddle';
-
-const isFullyVerified = (
-  provenance: JsonLPayload | undefined,
-  resources: SiteResourceData['resources'],
-): boolean => {
-  if (!provenance) return false;
-
-  return resources
-    .filter((res) => !res.path.startsWith('/.well-known/'))
-    .every((res) =>
-      provenance.subject.some(
-        (s) =>
-          (s.name.startsWith('/') ? s.name : `/${s.name}`) === res.path &&
-          s.digest.sha256 === res.blobHash,
-      ),
-    );
-};
+import { verifySiteInBrowser } from '../verification/site';
+import { VerificationReport } from '../verification/types';
 
 export const Site = () => {
   const location = useLocation();
@@ -46,9 +29,9 @@ export const Site = () => {
   const dAppKit = useDAppKit();
   const [network, setNetwork] = useState('testnet');
   const [loading, setLoading] = useState(true);
-  const [provenance, setProvenance] = useState<JsonLPayload | undefined>(
-    undefined,
-  );
+  const [verificationReport, setVerificationReport] = useState<
+    VerificationReport | undefined
+  >(undefined);
   const [siteResources, setSiteResources] = useState<SiteResourceData>({
     id: '',
     siteObjOwner: '',
@@ -65,20 +48,12 @@ export const Site = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const siteData = await getSiteResources(query);
+      const { siteResources: siteData, report } =
+        await verifySiteInBrowser(query);
       setSiteResources(siteData);
-
-      const jsonl = siteData.resources.find(
-        (res) => res.path === '/.well-known/walrus-sites.intoto.jsonl',
-      );
-      if (jsonl) {
-        const blobBytes = await readBlob(jsonl.blobId, jsonl.range);
-        setProvenance(parseJsonl(new TextDecoder().decode(blobBytes)));
-      } else {
-        setProvenance(undefined);
-      }
+      setVerificationReport(report);
     } catch {
-      setProvenance(undefined);
+      setVerificationReport(undefined);
     } finally {
       setLoading(false);
     }
@@ -112,7 +87,7 @@ export const Site = () => {
 
   useEffect(() => {
     setLoading(true);
-    setProvenance(undefined);
+    setVerificationReport(undefined);
     setSiteResources({
       id: '',
       siteObjOwner: '',
@@ -164,13 +139,7 @@ export const Site = () => {
                   </div>
                 </h1>
 
-                <ProvenanceCard
-                  provenance={provenance}
-                  isFullyVerified={isFullyVerified(
-                    provenance,
-                    siteResources.resources,
-                  )}
-                />
+                <ProvenanceCard report={verificationReport} />
 
                 <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
                   {[
@@ -254,7 +223,7 @@ export const Site = () => {
                 </div>
 
                 <ResourceTable
-                  provenance={provenance}
+                  artifactReport={verificationReport?.artifact}
                   siteObjOwner={siteResources.siteObjOwner}
                   resources={siteResources.resources}
                   epoch={siteResources.epoch}

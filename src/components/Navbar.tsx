@@ -1,8 +1,5 @@
-import {
-  ConnectButton,
-  useCurrentAccount,
-  useDAppKit,
-} from '@mysten/dapp-kit-react';
+import { useCurrentAccount, useDAppKit } from '@mysten/dapp-kit-react';
+import { ConnectButton } from '@mysten/dapp-kit-react/ui';
 import { Github, BookOpen, Info, LogOut } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 

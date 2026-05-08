@@ -60,6 +60,17 @@ type BlobJson = {
   storage?: BlobStorageJson | { fields?: BlobStorageJson };
 };
 
+type DynamicFieldPage = {
+  dynamicFields: {
+    $kind: 'DynamicField' | 'DynamicObject';
+    childId?: string;
+    fieldId?: string;
+    valueType: string;
+  }[];
+  hasNextPage: boolean;
+  cursor: string | null;
+};
+
 const toNum = (v?: number | string): number | undefined =>
   typeof v === 'number'
     ? v
@@ -148,7 +159,7 @@ const getAllDynamicFields = async (
   let cursor: string | null | undefined = undefined;
 
   while (true) {
-    const page = await client.listDynamicFields({
+    const page: DynamicFieldPage = await client.listDynamicFields({
       parentId,
       cursor,
       limit: 50,
@@ -161,7 +172,7 @@ const getAllDynamicFields = async (
       if (field.valueType.endsWith('::site::Resource')) {
         const id =
           field.$kind === 'DynamicObject' ? field.childId : field.fieldId;
-        resourceObjectIds.push(id);
+        if (id) resourceObjectIds.push(id);
       }
     }
 
