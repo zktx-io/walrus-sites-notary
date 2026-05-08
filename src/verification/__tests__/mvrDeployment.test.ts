@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createDeploymentTransactionLoader,
+  deploymentTargetsPackage,
+  hasCreatedImmutableAddress,
   parseDeploymentContext,
 } from '../mvrDeployment';
 
@@ -46,6 +48,41 @@ describe('MVR deployment parser', () => {
 });
 
 describe('MVR deployment transaction loader', () => {
+  it('matches created immutable addresses after Sui object id normalization', () => {
+    expect(
+      hasCreatedImmutableAddress(
+        {
+          createdImmutableAddresses: [
+            '0x0000000000000000000000000000000000000000000000000000000000000abc',
+          ],
+        },
+        '0xabc',
+      ),
+    ).toBe(true);
+  });
+
+  it('matches upgrade deployments by Upgrade.package without created immutable objects', () => {
+    const deployment = parseDeploymentContext([
+      {
+        $kind: 'Upgrade',
+        Upgrade: {
+          modules: ['module-a'],
+          dependencies: ['0x2'],
+          package:
+            '0x0000000000000000000000000000000000000000000000000000000000000abc',
+        },
+      },
+    ]);
+
+    expect(
+      deploymentTargetsPackage(
+        deployment,
+        { createdImmutableAddresses: [] },
+        '0xabc',
+      ),
+    ).toBe(true);
+  });
+
   it('uses gRPC transaction bytes and effects when available', async () => {
     const getTransaction = vi.fn(async () => ({
       $kind: 'Transaction' as const,

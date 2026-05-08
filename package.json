@@ -21,7 +21,7 @@
     "@mysten/walrus": "^1.1.4",
     "@noble/hashes": "^1.7.1",
     "@radix-ui/react-dialog": "^1.1.15",
-    "@zktx.io/sui-move-builder": "^0.3.3",
+    "@zktx.io/sui-move-builder": "^0.5.0",
     "canvas-confetti": "^1.9.3",
     "lucide-react": "^0.488.0",
     "react": "^19.0.0",

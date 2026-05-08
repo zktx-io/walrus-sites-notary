@@ -6,6 +6,8 @@ import {
   Network,
 } from '../utils/suiClient';
 
+import { isSameSuiObjectId } from './mvrObjectId';
+
 export interface LoadedDeploymentTransaction {
   rawTransactionBytes: Uint8Array;
   createdImmutableAddresses: string[];
@@ -232,4 +234,7 @@ export const hasCreatedImmutableAddress = (
     'createdImmutableAddresses'
   >,
   packageAddress: string,
-): boolean => loadedTransaction.createdImmutableAddresses.includes(packageAddress);
+): boolean =>
+  loadedTransaction.createdImmutableAddresses.some((address) =>
+    isSameSuiObjectId(address, packageAddress),
+  );

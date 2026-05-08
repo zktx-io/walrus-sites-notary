@@ -1,5 +1,5 @@
 import {
-  hasCreatedImmutableAddress,
+  deploymentTargetsPackage,
   loadDeploymentTransaction,
   parseDeploymentContextFromBytes,
   type DeploymentContext,
@@ -15,20 +15,23 @@ export const verifyBytecode = async (
 ): Promise<boolean> => {
   const loadedTransaction = await loadDeploymentTransaction('mainnet', digest);
 
-  if (loadedTransaction.createdImmutableAddresses.length === 0) {
-    return false;
-  }
-
-  if (!hasCreatedImmutableAddress(loadedTransaction, packageAddress)) {
-    return false;
-  }
-
   let deployment: DeploymentContext;
   try {
     deployment = parseDeploymentContextFromBytes(
       loadedTransaction.rawTransactionBytes,
     );
   } catch {
+    return false;
+  }
+
+  if (
+    deployment.kind === 'publish' &&
+    loadedTransaction.createdImmutableAddresses.length === 0
+  ) {
+    return false;
+  }
+
+  if (!deploymentTargetsPackage(deployment, loadedTransaction, packageAddress)) {
     return false;
   }
 

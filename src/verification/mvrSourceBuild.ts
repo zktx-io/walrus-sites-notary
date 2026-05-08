@@ -1,28 +1,37 @@
 import { normalizeSuiObjectId } from '@mysten/sui/utils';
 import { bytesToHex } from '@noble/hashes/utils';
+import { fetchMovePackageFromGitHub } from '@zktx.io/sui-move-builder';
 import {
-  fetchMovePackageFromGitHub,
-  initMovePackageBuilder,
-  prepareMovePackagePublish,
-  prepareMovePackageUpgrade,
-  type MovePackageFailure,
-  type MovePackageInput,
-  type MovePackageProgressEvent,
-  type MovePackagePublishSuccess,
-  type MovePackageUpgradeInput,
-  type MovePackageUpgradeSuccess,
-} from '@zktx.io/sui-move-builder';
+  verifyMovePackageProvenance,
+  type MovePackageProvenanceInput,
+  type MovePackageProvenanceResult,
+  type VerificationFailureStage,
+  type VerificationStatus,
+  type VerificationVerdict,
+} from '@zktx.io/sui-move-builder/verification';
 
+import {
+  extractSourceFailureHints,
+  type SourceFailureContext,
+} from '../utils/sourceFailureHints';
 import { Network } from '../utils/suiClient';
 
 import {
+  deploymentTargetsPackage,
   DeploymentContext,
   DeploymentKind,
-  hasCreatedImmutableAddress,
   LoadedDeploymentTransaction,
   loadDeploymentTransaction,
   parseDeploymentContextFromBytes,
 } from './mvrDeployment';
+
+type MovePackageProgressEvent = Parameters<
+  NonNullable<MovePackageProvenanceInput['onProgress']>
+>[0];
+
+type FetchedMovePackageSource =
+  | Record<string, string>
+  | Pick<MovePackageProvenanceInput, 'files' | 'rootGit'>;
 
 export interface VerificationResult {
   success: boolean;
@@ -40,6 +49,20 @@ export interface VerificationResult {
     deploymentKind?: DeploymentKind;
     buildIntent?: DeploymentKind;
     upgradePackageId?: string;
+    verificationStatus?: VerificationStatus;
+    verificationVerdict?: VerificationVerdict;
+    verificationSummary?: string;
+    verificationDisplayMessage?: string;
+    failureStage?: VerificationFailureStage;
+    selectedVerifier?: MovePackageProvenanceResult['selectedVerifier'];
+    candidatesConsidered?: MovePackageProvenanceResult['candidatesConsidered'];
+    referenceBytecode?: MovePackageProvenanceResult['referenceBytecode'];
+    sourceCompatibility?: MovePackageProvenanceResult['sourceCompatibility'];
+    referenceSummary?: MovePackageProvenanceResult['referenceSummary'];
+    currentSummary?: MovePackageProvenanceResult['currentSummary'];
+    differences?: string[];
+    bytecodeDiffs?: MovePackageProvenanceResult['bytecodeDiffs'];
+    bytecodeHeaderEvidence?: MovePackageProvenanceResult['bytecodeHeaderEvidence'];
   };
   error?: string;
 }
@@ -55,26 +78,14 @@ export interface VerifyMvrSourceBuildInput {
   log?: (message: string) => void;
 }
 
-type MovePackageBuildSuccess =
-  | MovePackagePublishSuccess
-  | MovePackageUpgradeSuccess;
-
-interface BuildMovePackageAdapters {
-  preparePublish?: (
-    input: MovePackageInput,
-  ) => Promise<MovePackagePublishSuccess | MovePackageFailure>;
-  prepareUpgrade?: (
-    input: MovePackageUpgradeInput,
-  ) => Promise<MovePackageUpgradeSuccess | MovePackageFailure>;
-}
-
-export interface VerifyMvrSourceBuildAdapters
-  extends BuildMovePackageAdapters {
+export interface VerifyMvrSourceBuildAdapters {
   fetchSource?: (
     url: string,
     options?: { githubToken?: string },
-  ) => Promise<Record<string, string>>;
-  initBuilder?: typeof initMovePackageBuilder;
+  ) => Promise<FetchedMovePackageSource>;
+  verifyProvenance?: (
+    input: MovePackageProvenanceInput,
+  ) => Promise<MovePackageProvenanceResult>;
   loadTransaction?: (
     network: Network,
     txDigest: string,
@@ -100,7 +111,36 @@ interface BytecodeComparison {
   details: BytecodeComparisonDetails;
 }
 
-let compilerInitialized = false;
+type FetchFailedProgressEvent = Extract<
+  MovePackageProgressEvent,
+  { type: 'fetch_failed' }
+>;
+
+const describeProgressSource = (
+  source?: FetchFailedProgressEvent['source'],
+): string => {
+  if (!source || typeof source !== 'object') return '<unknown>';
+  const value = source as {
+    type?: string;
+    git?: string;
+    rev?: string;
+    subdir?: string;
+    local?: string;
+    address?: string;
+  };
+
+  if (value.type === 'git') {
+    return `${value.git ?? '<unknown>'}@${value.rev ?? '<unknown>'}${
+      value.subdir ? `/${value.subdir}` : ''
+    }`;
+  }
+
+  if (value.type === 'local') {
+    return `local:${value.local ?? '<unknown>'}`;
+  }
+
+  return value.address ?? value.type ?? '<unknown>';
+};
 
 const logProgressEvent = (
   event: MovePackageProgressEvent,
@@ -129,8 +169,51 @@ const logProgressEvent = (
     case 'lockfile_generate':
       log('🔒 Generating Move.lock file...');
       break;
+    case 'fetch_failed':
+      log(
+        `❌ Source fetch failed: ${event.dependencyName} (${describeProgressSource(event.source)})`,
+      );
+      if (event.parentPackageName) {
+        log(`• Parent package: ${event.parentPackageName}`);
+      }
+      if (event.code) {
+        log(`• Failure code: ${event.code}`);
+      }
+      log(`• ${event.error}`);
+      break;
     default:
       log(`[progress] ${JSON.stringify(event)}`);
+  }
+};
+
+const normalizeFetchedSource = (
+  source: FetchedMovePackageSource,
+): Pick<MovePackageProvenanceInput, 'files' | 'rootGit'> => {
+  const maybePackage = source as Partial<
+    Pick<MovePackageProvenanceInput, 'files' | 'rootGit'>
+  >;
+
+  if (
+    maybePackage.files &&
+    typeof maybePackage.files === 'object' &&
+    !Array.isArray(maybePackage.files)
+  ) {
+    return {
+      files: maybePackage.files,
+      rootGit: maybePackage.rootGit,
+    };
+  }
+
+  return { files: source as Record<string, string> };
+};
+
+const logSourceFailureHints = (
+  error: string,
+  log?: (message: string) => void,
+  fallback?: SourceFailureContext,
+) => {
+  for (const hint of extractSourceFailureHints(error, fallback)) {
+    log?.(`❌ Source access failed: ${hint}`);
   }
 };
 
@@ -235,47 +318,15 @@ export const compareMoveBytecode = ({
   };
 };
 
-async function initializeCompiler(
-  log: ((message: string) => void) | undefined,
-  initBuilder: typeof initMovePackageBuilder,
-) {
-  if (compilerInitialized) {
-    log?.('✓ Move compiler already initialized');
-    return;
-  }
-
-  log?.('⚙️  Initializing Move compiler...');
-  try {
-    await initBuilder();
-    compilerInitialized = true;
-    log?.('✓ Move compiler initialized');
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log?.(`❌ WASM initialization failed: ${errorMessage}`);
-    throw new Error(`Failed to initialize Move compiler: ${errorMessage}`);
-  }
-}
-
-async function buildMovePackageForDeployment(
-  deployment: DeploymentContext,
-  commonInput: MovePackageInput,
-  adapters: BuildMovePackageAdapters,
-): Promise<MovePackageBuildSuccess | MovePackageFailure> {
-  if (deployment.kind === 'publish') {
-    return (adapters.preparePublish ?? prepareMovePackagePublish)(commonInput);
-  }
-
-  return (adapters.prepareUpgrade ?? prepareMovePackageUpgrade)({
-    ...commonInput,
-    packageId: deployment.upgradePackageId,
-  });
-}
-
-const createdPackageFailure = (
+const deploymentPackageFailure = (
   packageAddress: string,
   loadedTransaction: LoadedDeploymentTransaction,
+  deployment: DeploymentContext,
 ): VerificationResult | null => {
-  if (loadedTransaction.createdImmutableAddresses.length === 0) {
+  if (
+    deployment.kind === 'publish' &&
+    loadedTransaction.createdImmutableAddresses.length === 0
+  ) {
     return {
       success: false,
       message: 'Transaction not found or has no created immutable objects',
@@ -283,7 +334,7 @@ const createdPackageFailure = (
     };
   }
 
-  if (!hasCreatedImmutableAddress(loadedTransaction, packageAddress)) {
+  if (!deploymentTargetsPackage(deployment, loadedTransaction, packageAddress)) {
     return {
       success: false,
       message: 'Package address does not match',
@@ -304,6 +355,114 @@ const buildDetails = (
   upgradePackageId: deployment.upgradePackageId,
 });
 
+const digestToHex = (digest?: number[] | string): string | undefined => {
+  if (!digest) return undefined;
+  if (typeof digest === 'string') return digest;
+  return bytesToHex(new Uint8Array(digest));
+};
+
+const createReferenceArtifact = (
+  deployment: DeploymentContext,
+  packageAddress: string,
+): MovePackageProvenanceInput['reference'] => {
+  const reference: MovePackageProvenanceInput['reference'] = {
+    modules: deployment.modules,
+    dependencies: deployment.dependencies,
+  };
+
+  if (deployment.kind === 'publish') {
+    reference.packageId = packageAddress;
+  }
+
+  return reference;
+};
+
+const verificationStatusMessage = (
+  result: MovePackageProvenanceResult,
+): string => {
+  switch (result.status) {
+    case 'verified':
+      return 'Source code verification successful! Modules and dependencies match.';
+    case 'mismatch':
+      return 'Source verification mismatch: rebuilt bytecode does not match deployed bytecode.';
+    case 'bytecode_version_mismatch':
+      return 'Bytecode version mismatch: this verifier cannot prove byte-for-byte provenance for the reference bytecode version.';
+    case 'invalid_reference':
+      return 'Invalid reference artifact';
+    case 'build_failure':
+      return 'Failed to build Move package';
+    default:
+      return 'Verification failed with error';
+  }
+};
+
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
+
+const firstDiagnosticLine = (value?: string): string | undefined => {
+  const line = value
+    ?.replace(ANSI_REGEX, '')
+    .split(/\r?\n/)
+    .map((part) => part.trim())
+    .find(Boolean);
+
+  if (!line) return undefined;
+  return line.length > 240 ? `${line.slice(0, 237)}...` : line;
+};
+
+const verificationFailureLogMessage = (
+  result: MovePackageProvenanceResult,
+): string => {
+  const parts = [`status=${result.status}`];
+  if (result.failureStage) parts.push(`stage=${result.failureStage}`);
+  if (result.verdict) parts.push(`verdict=${result.verdict}`);
+  return `❌ Verification failed (${parts.join(', ')})`;
+};
+
+const verificationDetails = (
+  result: MovePackageProvenanceResult,
+  deployment: DeploymentContext,
+): VerificationResult['details'] => {
+  const provenanceDetails = {
+    verificationStatus: result.status,
+    verificationVerdict: result.verdict,
+    verificationSummary: result.summary,
+    verificationDisplayMessage: result.displayMessage,
+    failureStage: result.failureStage,
+    selectedVerifier: result.selectedVerifier,
+    candidatesConsidered: result.candidatesConsidered,
+    referenceBytecode: result.referenceBytecode,
+    sourceCompatibility: result.sourceCompatibility,
+    referenceSummary: result.referenceSummary,
+    currentSummary: result.currentSummary,
+    differences: result.differences,
+    bytecodeDiffs: result.bytecodeDiffs,
+    bytecodeHeaderEvidence: result.bytecodeHeaderEvidence,
+  };
+
+  if (!result.currentBuild) {
+    return {
+      deploymentKind: deployment.kind,
+      buildIntent: deployment.kind,
+      upgradePackageId: deployment.upgradePackageId,
+      ...provenanceDetails,
+    };
+  }
+
+  const comparison = compareMoveBytecode({
+    builtModules: result.currentBuild.modules,
+    deployedModules: deployment.modules,
+    builtDependencies: result.currentBuild.dependencies,
+    deployedDependencies: deployment.dependencies,
+    builtDigest: digestToHex(result.currentBuild.digest),
+  });
+
+  return {
+    ...buildDetails(comparison.details, deployment),
+    ...provenanceDetails,
+  };
+};
+
 export const verifyMvrSourceBuild = async (
   input: VerifyMvrSourceBuildInput,
   adapters: VerifyMvrSourceBuildAdapters = {},
@@ -320,30 +479,39 @@ export const verifyMvrSourceBuild = async (
   } = input;
 
   try {
-    if (githubToken) {
-      log?.('🔐 Using provided GitHub token for GitHub API calls');
-    } else {
+    if (!githubToken) {
       log?.(
         'ℹ️ No GitHub token provided; falling back to anonymous GitHub API limits',
       );
     }
 
+    const sourceContext = { repoUrl, tag, path };
     const fetchSource = adapters.fetchSource ?? fetchMovePackageFromGitHub;
-    const files = await fetchSource(`${repoUrl}/tree/${tag}/${path}`, {
-      githubToken,
-    });
+    let source: Pick<MovePackageProvenanceInput, 'files' | 'rootGit'>;
+    try {
+      source = normalizeFetchedSource(
+        await fetchSource(`${repoUrl}/tree/${tag}/${path}`, {
+          githubToken,
+        }),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log?.('❌ Failed to load source snapshot');
+      logSourceFailureHints(message, log, sourceContext);
+      throw error;
+    }
+
+    const { files, rootGit } = source;
+
+    log?.(
+      `✓ Source snapshot loaded (${Object.keys(files).length} package files)`,
+    );
 
     log?.('🔗 Fetching deployed bytecode from Sui blockchain...');
     const loadedTransaction = await (
       adapters.loadTransaction ?? loadDeploymentTransaction
     )(network, txDigest);
     log?.('✓ Transaction data retrieved');
-
-    const packageFailure = createdPackageFailure(
-      packageAddress,
-      loadedTransaction,
-    );
-    if (packageFailure) return packageFailure;
 
     let deployment: DeploymentContext;
     try {
@@ -372,56 +540,60 @@ export const verifyMvrSourceBuild = async (
       `✓ Found ${deployment.kind === 'publish' ? 'Publish' : 'Upgrade'} command with ${deployment.modules.length} modules`,
     );
 
-    await initializeCompiler(log, adapters.initBuilder ?? initMovePackageBuilder);
+    const packageFailure = deploymentPackageFailure(
+      packageAddress,
+      loadedTransaction,
+      deployment,
+    );
+    if (packageFailure) return packageFailure;
 
     log?.(
-      `🔨 Building Move package with ${deployment.kind} intent...`,
+      `🔨 Rebuilding Move package for ${deployment.kind} provenance verification...`,
     );
-    const buildResult = await buildMovePackageForDeployment(
-      deployment,
+    log?.(
+      '⚙️  Selecting Move verifier from reference bytecode version...',
+    );
+    const verificationResult = await (
+      adapters.verifyProvenance ?? verifyMovePackageProvenance
+    )(
       {
         files,
+        rootGit,
+        intent: deployment.kind,
+        reference: createReferenceArtifact(deployment, packageAddress),
         ansiColor: true,
         network,
         githubToken,
         onProgress: (event) => logProgressEvent(event, log),
       },
-      adapters,
     );
 
-    if ('error' in buildResult) {
-      log?.('❌ Build failed');
+    const details = verificationDetails(verificationResult, deployment);
+    const message = verificationStatusMessage(verificationResult);
+
+    if (verificationResult.status !== 'verified') {
+      log?.(verificationFailureLogMessage(verificationResult));
+      const diagnostic = firstDiagnosticLine(
+        verificationResult.error ??
+          verificationResult.displayMessage ??
+          verificationResult.summary,
+      );
+      if (diagnostic) {
+        log?.(`• ${diagnostic}`);
+      }
+      if (verificationResult.error) {
+        logSourceFailureHints(verificationResult.error, log);
+      }
       return {
         success: false,
-        message: 'Failed to build Move package',
-        error: buildResult.error,
-        details: {
-          deploymentKind: deployment.kind,
-          buildIntent: deployment.kind,
-          upgradePackageId: deployment.upgradePackageId,
-        },
+        message,
+        error: verificationResult.error,
+        details,
       };
     }
 
-    if (buildResult.intent !== deployment.kind) {
-      return {
-        success: false,
-        message: `Build intent mismatch: built ${buildResult.intent}, expected ${deployment.kind}`,
-        error: 'Build intent mismatch',
-        details: {
-          deploymentKind: deployment.kind,
-          buildIntent: buildResult.intent,
-          upgradePackageId: deployment.upgradePackageId,
-        },
-      };
-    }
-
-    const builtDigest =
-      buildResult.digest.length > 0
-        ? bytesToHex(new Uint8Array(buildResult.digest))
-        : undefined;
-
-    log?.(`✓ Build successful (${buildResult.modules.length} modules)`);
+    const builtDigest = details?.builtDigest;
+    log?.(`✓ Build successful (${details?.builtModules?.length ?? 0} modules)`);
     if (builtDigest) {
       log?.(`📦 Build digest: ${builtDigest.substring(0, 16)}...`);
     }
@@ -430,20 +602,12 @@ export const verifyMvrSourceBuild = async (
       '🔍 Comparing built modules and dependencies with deployed values...',
     );
     log?.(`• Deployed modules (${deployment.modules.length})`);
-    log?.(`• Built modules (${buildResult.modules.length})`);
-
-    const comparison = compareMoveBytecode({
-      builtModules: buildResult.modules,
-      deployedModules: deployment.modules,
-      builtDependencies: buildResult.dependencies,
-      deployedDependencies: deployment.dependencies,
-      builtDigest,
-    });
+    log?.(`• Built modules (${details?.builtModules?.length ?? 0})`);
 
     return {
-      success: comparison.success,
-      message: comparison.message,
-      details: buildDetails(comparison.details, deployment),
+      success: true,
+      message,
+      details,
     };
   } catch (error) {
     return {

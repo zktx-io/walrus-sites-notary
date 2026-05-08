@@ -8,6 +8,7 @@ export {
   type DeploymentContext,
   type DeploymentKind,
 } from './mvrDeploymentParser';
+export { deploymentTargetsPackage } from './mvrPackageMatch';
 export {
   createDeploymentTransactionLoader,
   hasCreatedImmutableAddress,

@@ -49,6 +49,7 @@ For Walrus Sites:
 For MVR Contracts:
 - Fetches registered contract metadata
 - Validates deployed bytecode against build provenance
+- Rebuilds linked GitHub source in-browser with the pinned Move verification WASM using the matching Publish/Upgrade intent and compares it with deployed bytecode
 - Links Sigstore/Rekor provenance entries for inspection
 - Displays repository, commit, workflow, and registry metadata
 
@@ -154,10 +155,12 @@ Process:
 - Retrieves deployed on-chain bytecode
 - Resolves associated SLSA provenance
 - Compares deployed bytecode hash with build artifact
+- Rebuilds linked source through `@zktx.io/sui-move-builder/verification` with the extracted transaction intent and bytecode-version-selected verifier when source verification is requested
 - Links public Sigstore/Rekor provenance material
 
 Output:
 - Bytecode hash validation result
+- Source verifier status and bytecode evidence verdict when source verification is run
 - Provenance link status
 - Builder metadata (repository, commit, workflow)
 - Registry registration details

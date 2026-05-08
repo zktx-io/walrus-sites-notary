@@ -10,10 +10,8 @@ import { useEffect, useState, useRef } from 'react';
 
 import { MvrData } from '../utils/getMvrData';
 import { getPackageCreationTransaction } from '../utils/getPackageCreationTransaction';
-import {
-  verifySourceCode,
-  VerificationResult,
-} from '../utils/verifySourceCode';
+import { extractSourceFailureHints } from '../utils/sourceFailureHints';
+import type { VerificationResult } from '../utils/verifySourceCode';
 
 type AnsiColorMap = Record<number, string>;
 // eslint-disable-next-line no-control-regex
@@ -40,6 +38,7 @@ const ANSI_COLORS: AnsiColorMap = {
 const GITHUB_TOKEN_STORAGE_KEY = 'walrus-notary-github-token';
 const GITHUB_TOKEN_CREATE_URL =
   'https://github.com/settings/tokens/new?scopes=repo&description=Walrus%20Notary';
+const GITHUB_TOKEN_VALIDATION_URL = 'https://api.github.com/rate_limit';
 
 const VERIFY_OUTER_BUTTON =
   'group relative w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-70 disabled:saturate-75 rounded-lg p-[2px] bg-[#0c2f1a] overflow-hidden';
@@ -47,6 +46,127 @@ const VERIFY_BORDER_GLOW =
   'absolute inset-0 rounded-lg bg-[conic-gradient(at_center,_rgba(34,197,94,0.7)_0deg,_rgba(34,197,94,0.7)_360deg)] opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-out pointer-events-none';
 const VERIFY_INNER_BUTTON =
   'relative block w-full rounded-lg bg-[#0b1f14] border border-emerald-800/70 text-white font-semibold py-3 px-6 transition-all duration-300 ease-in-out flex items-center justify-center gap-2 shadow-lg group-hover:shadow-[0_0_22px_rgba(34,197,94,0.4)] group-hover:border-transparent';
+
+const formatVerifierValue = (value: string) => value.replace(/_/g, ' ');
+
+const countCompilerDiagnostics = (text: string) => {
+  const counts = { errors: 0, warnings: 0 };
+  const cleanText = text.replace(ANSI_REGEX, '');
+
+  for (const line of cleanText.split(/\r?\n/)) {
+    if (/^\s*error(?:\[[^\]\r\n]+\])?:/i.test(line)) {
+      counts.errors += 1;
+    } else if (/^\s*warning(?:\[[^\]\r\n]+\])?:/i.test(line)) {
+      counts.warnings += 1;
+    }
+  }
+
+  if (counts.errors === 0 && counts.warnings === 0 && cleanText.trim()) {
+    counts.errors = 1;
+  }
+
+  return counts;
+};
+
+const formatDiagnosticCount = (count: number, label: string) =>
+  `${count} ${label}${count === 1 ? '' : 's'}`;
+
+const renderDiagnosticBadges = (text: string) => {
+  const counts = countCompilerDiagnostics(text);
+
+  return (
+    <div className="ml-auto flex flex-shrink-0 items-center gap-2 text-[0.65rem] font-semibold">
+      <span className="rounded border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-red-200">
+        {formatDiagnosticCount(counts.errors, 'error')}
+      </span>
+      <span className="rounded border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-yellow-200">
+        {formatDiagnosticCount(counts.warnings, 'warning')}
+      </span>
+    </div>
+  );
+};
+
+const getGithubErrorHint = (error: string, hasToken: boolean) => {
+  if (!/(github|repository|repo|rate limit|403|404|401)/i.test(error)) {
+    return null;
+  }
+
+  if (/GitHub token is invalid or expired|bad credentials/i.test(error)) {
+    return 'GitHub token is invalid or expired. Clear it and enter a valid personal access token.';
+  }
+
+  if (/403|429|rate limit/i.test(error) && !hasToken) {
+    return 'GitHub API rate limit may have been exceeded. Try again later or authenticate with a GitHub token.';
+  }
+
+  if (/404/i.test(error) && !hasToken) {
+    return 'The repository, tag, or path could not be found. Verify the git information or use a token if the repository is private.';
+  }
+
+  return null;
+};
+
+const renderSourceFailureHints = (error: string) => {
+  const hints = extractSourceFailureHints(error);
+  if (hints.length === 0) return null;
+
+  return (
+    <div className="mb-3 rounded border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-100">
+      <div className="mb-1 font-semibold text-yellow-200">
+        Source access failed:
+      </div>
+      <div className="space-y-1 font-mono">
+        {hints.map((hint) => (
+          <div key={hint} className="break-words [overflow-wrap:anywhere]">
+            {hint}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const validateGithubToken = async (token: string) => {
+  let response: Response;
+  try {
+    response = await fetch(GITHUB_TOKEN_VALIDATION_URL, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Could not validate GitHub token before verification: ${message}`,
+    );
+  }
+
+  if (response.ok) {
+    return;
+  }
+
+  if (response.status === 401) {
+    throw new Error(
+      'GitHub token is invalid or expired. Clear the stored token and enter a valid personal access token.',
+    );
+  }
+
+  if (response.status === 403 || response.status === 429) {
+    const reset = response.headers.get('x-ratelimit-reset');
+    const resetText = reset
+      ? ` Resets at ${new Date(Number(reset) * 1000).toLocaleTimeString()}.`
+      : '';
+    throw new Error(
+      `GitHub token could not be used because GitHub rejected the validation request (${response.status} ${response.statusText}).${resetText}`,
+    );
+  }
+
+  throw new Error(
+    `GitHub token validation failed (${response.status} ${response.statusText}).`,
+  );
+};
 
 function renderAnsiToReact(
   text: string,
@@ -203,6 +323,7 @@ export const MvrCodeVerifier = ({
       manualGitInfo.repository.trim() || mvrData.git_info?.repository_url;
     const tag = manualGitInfo.tag.trim() || mvrData.git_info?.tag;
     const path = manualGitInfo.path.trim() || mvrData.git_info?.path || '';
+    const githubTokenForRequest = githubToken.trim() || undefined;
 
     if (!repositoryUrl || !tag || !path) {
       setResult({
@@ -221,6 +342,12 @@ export const MvrCodeVerifier = ({
       addLog(`📦 Repository: ${repositoryUrl}`);
       addLog(`🏷️  Tag: ${tag}`);
       addLog(`📁 Path: ${path}`);
+
+      if (githubTokenForRequest) {
+        addLog('🔐 Validating GitHub token...');
+        await validateGithubToken(githubTokenForRequest);
+        addLog('✅ GitHub token is valid');
+      }
 
       let txDigest = resolvedDigest;
 
@@ -257,10 +384,11 @@ export const MvrCodeVerifier = ({
 
       addLog('⬇️  Fetching source code from GitHub...');
 
-      if (githubToken) {
-        addLog('🔐 GitHub token will be used for API calls');
+      if (githubTokenForRequest) {
+        addLog('🔐 Valid GitHub token will be used for API calls');
       }
 
+      const { verifySourceCode } = await import('../utils/verifySourceCode');
       const verificationResult = await verifySourceCode(
         repositoryUrl,
         tag,
@@ -269,19 +397,20 @@ export const MvrCodeVerifier = ({
         txDigest,
         'mainnet',
         addLog,
-        githubToken || undefined,
+        githubTokenForRequest,
       );
 
       if (verificationResult.success) {
         addLog('✅ Verification completed successfully!');
-      } else {
-        addLog('❌ Verification failed');
       }
 
       setResult(verificationResult);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       addLog(`❌ Error: ${errorMsg}`);
+      if (githubTokenForRequest && /github token/i.test(errorMsg)) {
+        setAuthExpanded(true);
+      }
       setResult({
         success: false,
         message: 'Verification error',
@@ -461,7 +590,7 @@ export const MvrCodeVerifier = ({
                 {logs.map((log, index) => (
                   <div
                     key={index}
-                    className="text-slate-300 hover:bg-slate-800/50 px-2 py-1 rounded"
+                    className="text-slate-300 hover:bg-slate-800/50 px-2 py-1 rounded break-words [overflow-wrap:anywhere]"
                   >
                     {log}
                   </div>
@@ -486,40 +615,41 @@ export const MvrCodeVerifier = ({
                   ) : (
                     <XCircle className="w-6 h-6 text-red-500 mt-0.5 flex-shrink-0" />
                   )}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p
-                      className={`font-semibold ${
+                      className={`font-semibold break-words ${
                         result.success ? 'text-green-200' : 'text-red-200'
                       }`}
                     >
                       {result.message}
                     </p>
-                    {result.error && (
-                      <div className="mt-4">
-                        <div className="bg-slate-950/80 rounded-lg p-4 border border-red-500/30 font-mono text-xs overflow-x-auto">
-                          <div className="text-red-300 font-semibold mb-2">
-                            Build Error:
-                          </div>
-                          <div className="text-slate-300 whitespace-pre-wrap leading-relaxed">
-                            {renderAnsiToReact(result.error, ANSI_COLORS)}
-                          </div>
-                        </div>
-                        {result.error.includes('403') && (
-                          <p className="text-yellow-300/80 text-xs mt-2">
-                            GitHub API rate limit may have been exceeded. Please
-                            try again later or authenticate with a GitHub token.
-                          </p>
-                        )}
-                        {result.error.includes('404') && (
-                          <p className="text-yellow-300/80 text-xs mt-2">
-                            The repository, tag, or path could not be found.
-                            Please verify the git information is correct.
-                          </p>
-                        )}
+                  </div>
+                  {result.error && renderDiagnosticBadges(result.error)}
+                </div>
+                {result.error && (
+                  <div className="mt-4">
+                    {renderSourceFailureHints(result.error)}
+                    <div className="bg-slate-950/80 rounded-lg border border-red-500/30 font-mono text-xs overflow-hidden">
+                      <div className="border-b border-red-500/20 px-4 py-2 text-red-300 font-semibold">
+                        Build Error:
                       </div>
+                      <div className="max-h-64 overflow-y-auto p-4 text-slate-300 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed">
+                        {renderAnsiToReact(result.error, ANSI_COLORS)}
+                      </div>
+                    </div>
+                    {getGithubErrorHint(
+                      result.error,
+                      Boolean(githubToken.trim()),
+                    ) && (
+                      <p className="text-yellow-300/80 text-xs mt-2">
+                        {getGithubErrorHint(
+                          result.error,
+                          Boolean(githubToken.trim()),
+                        )}
+                      </p>
                     )}
                   </div>
-                </div>
+                )}
               </div>
 
               {result.details && (
@@ -544,6 +674,38 @@ export const MvrCodeVerifier = ({
                           <span className="text-gray-400">Build Intent:</span>
                           <span className="text-white font-mono capitalize">
                             {result.details.buildIntent}
+                          </span>
+                        </div>
+                      )}
+                      {result.details.verificationStatus && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Verification Status:
+                          </span>
+                          <span className="text-white font-mono capitalize">
+                            {formatVerifierValue(
+                              result.details.verificationStatus,
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {result.details.verificationVerdict && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Verifier Verdict:
+                          </span>
+                          <span className="text-white font-mono capitalize">
+                            {formatVerifierValue(
+                              result.details.verificationVerdict,
+                            )}
+                          </span>
+                        </div>
+                      )}
+                      {result.details.failureStage && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Failure Stage:</span>
+                          <span className="text-white font-mono">
+                            {formatVerifierValue(result.details.failureStage)}
                           </span>
                         </div>
                       )}
@@ -603,6 +765,44 @@ export const MvrCodeVerifier = ({
                           </span>
                         </div>
                       )}
+                      {result.details.bytecodeDiffs && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Bytecode Diffs:
+                          </span>
+                          <span className="text-white font-mono">
+                            {result.details.bytecodeDiffs.length}
+                          </span>
+                        </div>
+                      )}
+                      {result.details.bytecodeHeaderEvidence
+                        ?.currentVerifierSuiVersion && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Verifier Sui Version:
+                          </span>
+                          <span className="text-white font-mono">
+                            {
+                              result.details.bytecodeHeaderEvidence
+                                .currentVerifierSuiVersion
+                            }
+                          </span>
+                        </div>
+                      )}
+                      {result.details.bytecodeHeaderEvidence
+                        ?.referenceCliVersion && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">
+                            Reference CLI Version:
+                          </span>
+                          <span className="text-white font-mono">
+                            {
+                              result.details.bytecodeHeaderEvidence
+                                .referenceCliVersion
+                            }
+                          </span>
+                        </div>
+                      )}
                       {result.details.upgradePackageId && (
                         <div className="flex flex-col gap-1 pt-2">
                           <span className="text-gray-400">
@@ -621,6 +821,36 @@ export const MvrCodeVerifier = ({
                           </span>
                         </div>
                       )}
+                      {result.details.verificationSummary && (
+                        <div className="flex flex-col gap-1 pt-2">
+                          <span className="text-gray-400">
+                            Verifier Summary:
+                          </span>
+                          <span className="text-white text-xs break-words bg-slate-900/50 p-2 rounded">
+                            {result.details.verificationSummary}
+                          </span>
+                        </div>
+                      )}
+                      {result.details.differences &&
+                        result.details.differences.length > 0 && (
+                          <div className="flex flex-col gap-1 pt-2">
+                            <span className="text-gray-400">
+                              Verification Differences:
+                            </span>
+                            <div className="space-y-1">
+                              {result.details.differences.map(
+                                (difference, index) => (
+                                  <div
+                                    key={`${index}-${difference}`}
+                                    className="text-white text-xs break-words bg-slate-900/50 p-2 rounded"
+                                  >
+                                    {difference}
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        )}
                     </div>
                   </div>
 
