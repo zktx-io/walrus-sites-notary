@@ -53,6 +53,48 @@ const QUERY_TX_INPUT = `
   }
 `;
 
+interface SignTransactionInput {
+  $kind?: string;
+  Pure?: {
+    bytes: string;
+  };
+}
+
+interface SignTransactionArgument {
+  $kind?: string;
+  Input?: number;
+}
+
+interface SignTransactionCommand {
+  $kind?: string;
+  TransferObjects?: {
+    address?: SignTransactionArgument;
+  };
+}
+
+const inputIndexFromArgument = (
+  argument: SignTransactionArgument | undefined,
+): number | undefined =>
+  argument?.$kind === 'Input' && typeof argument.Input === 'number'
+    ? argument.Input
+    : undefined;
+
+const getTransferRecipientInputIndexes = (
+  commands: SignTransactionCommand[],
+): Set<number> => {
+  const indexes = new Set<number>();
+
+  for (const command of commands) {
+    if (command.$kind !== 'TransferObjects') continue;
+    const inputIndex = inputIndexFromArgument(command.TransferObjects?.address);
+    if (inputIndex !== undefined) {
+      indexes.add(inputIndex);
+    }
+  }
+
+  return indexes;
+};
+
 export const Sign = () => {
   const [searchParams] = useSearchParams();
   const { requestDecryption, pinModal } = usePinPrompt();
@@ -118,7 +160,9 @@ export const Sign = () => {
         ),
       ];
       for (const digest of digests) {
-        if (await isRequestTx(digest)) return digest;
+        if (await isRequestTx(digest)) {
+          return digest;
+        }
       }
     } catch (e) {
       console.error('[grpc][getRequestDigest] error:', e);
@@ -206,6 +250,11 @@ export const Sign = () => {
       // In Sui 2.x, getData() returns inputs and commands directly (no ProgrammableTransaction wrapper).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const inputs: unknown[] = (txData as any).inputs ?? [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const commands: SignTransactionCommand[] = ((txData as any).commands ??
+        []) as SignTransactionCommand[];
+      const transferRecipientInputIndexes =
+        getTransferRecipientInputIndexes(commands);
 
       if (inputs.length === 0) {
         throw new Error('Invalid transaction input structure.');
@@ -225,28 +274,31 @@ export const Sign = () => {
         throw new Error('self signed transaction not allowed');
       }
 
-      // Encrypted chunks are Pure vector<u8> inputs — BCS-encoded (length prefix + data).
-      // The transferObjects recipient address is also stored as a Pure input (32 raw bytes)
-      // but is NOT BCS vector-encoded, so it fails bcs.vector(bcs.u8()).parse() and is excluded.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const encryptedChunks: Uint8Array[] = (inputs.slice(1) as any[])
-        .filter((input) => {
-          if (input.$kind !== 'Pure') return false;
-          try {
-            bcs.vector(bcs.u8()).parse(fromBase64(input.Pure.bytes));
-            return true;
-          } catch {
-            return false; // address input or unknown — skip
-          }
-        })
-        .map((input) => fromBase64(input.Pure.bytes));
+      // Encrypted chunks are Pure vector<u8> inputs - BCS-encoded (length prefix + data).
+      // TransferObjects recipient addresses are also Pure inputs, so exclude those
+      // by command input index before parsing candidate encrypted chunks.
+      const parsedChunks: Uint8Array[] = [];
+      for (const [relativeIndex, input] of (
+        inputs.slice(1) as SignTransactionInput[]
+      ).entries()) {
+        const inputIndex = relativeIndex + 1;
+        if (input.$kind !== 'Pure' || !input.Pure) continue;
+        if (transferRecipientInputIndexes.has(inputIndex)) {
+          continue;
+        }
 
-      if (encryptedChunks.length < 1) {
+        const pureBytes = fromBase64(input.Pure.bytes);
+        try {
+          const parsed = new Uint8Array(bcs.vector(bcs.u8()).parse(pureBytes));
+          parsedChunks.push(parsed);
+        } catch {
+          // Non-vector Pure inputs are transaction arguments, not encrypted data.
+        }
+      }
+
+      if (parsedChunks.length < 1) {
         throw new Error('Invalid encrypted structure or missing flag.');
       }
-      const parsedChunks: Uint8Array[] = encryptedChunks.map(
-        (chunk) => new Uint8Array(bcs.vector(bcs.u8()).parse(chunk)),
-      );
 
       const totalLength = parsedChunks.reduce(
         (sum, chunk) => sum + chunk.length,
@@ -264,6 +316,7 @@ export const Sign = () => {
         pinRef.current || (await requestDecryption(fullEncrypted));
       pinRef.current = resolvedPin;
       lastKnownDigestRef.current = digest;
+
       const decrypted = await decryptBytes(fullEncrypted, resolvedPin);
       return JSON.parse(new TextDecoder().decode(decrypted)) as Payload;
     } catch (e) {
