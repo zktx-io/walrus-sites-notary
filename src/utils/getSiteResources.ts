@@ -3,8 +3,7 @@ import { toBase64 } from '@mysten/sui/utils';
 import { suins } from '@mysten/suins';
 
 import { getCurrentWalrusEpoch } from './getCurrentWalrusEpoch';
-import { loadSiteConfig } from './loadSiteConfig';
-import { createGrpcClient, Network } from './suiClient';
+import { APP_NETWORK, createGrpcClient } from './suiClient';
 
 const OBJECTSIZE = 50;
 
@@ -183,11 +182,12 @@ const getAllDynamicFields = async (
   return resourceObjectIds;
 };
 
-interface ResourceData {
+export interface ResourceData {
   id: string;
   path: string;
   blobId: string;
   blobHash: string;
+  headers?: Record<string, string>;
   range?: {
     start: number;
     end: number;
@@ -243,15 +243,28 @@ export async function getAllObjects(
         path: string;
         blob_id: string;
         blob_hash: string;
+        headers?: {
+          contents?: { key: string; value: string }[];
+        };
         range?: { start: string; end: string };
       };
     };
+    const headerEntries = content.value?.headers?.contents ?? [];
+    const headers = Object.fromEntries(
+      headerEntries
+        .filter(
+          (header) =>
+            typeof header.key === 'string' && typeof header.value === 'string',
+        )
+        .map((header) => [header.key.toLowerCase(), header.value]),
+    );
 
     return {
       id: content.id ?? '',
       path: content.value?.path ?? '',
       blobId: bigintToBase64UrlLE(content.value?.blob_id ?? '0'),
       blobHash: bigintToHexLE(content.value?.blob_hash ?? '0'),
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
       range: content.value?.range
         ? {
             start: parseInt(content.value.range.start),
@@ -266,10 +279,9 @@ export const getSiteResources = async (
   prefix: string,
 ): Promise<SiteResourceData> => {
   try {
-    const config = await loadSiteConfig();
-    const network = (config?.network || 'testnet') as Network;
+    const network = APP_NETWORK;
 
-    // Network is caller-provided via site config (not a hardcoded module-scope literal).
+    // The hosted verifier is mainnet-only; site.config.json remains a deployment input.
     const grpcClient = createGrpcClient(network);
 
     // SuiNS 1.x: use SuiGrpcClient extended with suins().

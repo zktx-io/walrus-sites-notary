@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   parseDeploymentContext,
@@ -70,6 +70,10 @@ const createAdapters = (
   parseDeployment: vi.fn(() => deployment),
 });
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('deployment command parsing', () => {
   it('fails ambiguous deployment transactions', () => {
     expect(() =>
@@ -121,6 +125,8 @@ describe('MVR source build verification', () => {
       },
     }));
 
+    vi.stubGlobal('window', {});
+
     const result = await verifyMvrSourceBuild(createInput(), {
       ...adapters,
       verifyProvenance,
@@ -149,6 +155,7 @@ describe('MVR source build verification', () => {
         githubToken: 'ghp_token',
         intent: 'publish',
         network: 'mainnet',
+        verifierAssetBaseUrl: '/assets',
         reference: {
           modules: ['module-a'],
           dependencies: [DEPENDENCY],

@@ -10,6 +10,10 @@ interface ImportMeta {
 
 declare module 'node:fs/promises' {
   export function readFile(path: string | URL): Promise<Uint8Array>
+  export function readFile(
+    path: string | URL,
+    options: 'utf8' | { encoding: 'utf8' },
+  ): Promise<string>
 }
 
 declare module 'node:path' {

@@ -17,7 +17,7 @@ import { ProvenanceCard } from '../components/ProvenanceCard';
 import { ResourceTable } from '../components/ResourceTable';
 import { extendEpoch } from '../utils/extendEpoch';
 import { SiteResourceData } from '../utils/getSiteResources';
-import { loadSiteConfig } from '../utils/loadSiteConfig';
+import { APP_NETWORK } from '../utils/suiClient';
 import { truncateMiddle } from '../utils/truncateMiddle';
 import { verifySiteInBrowser } from '../verification/site';
 import { VerificationReport } from '../verification/types';
@@ -27,8 +27,9 @@ export const Site = () => {
   const query = location.pathname.replace(/^\/site\//, '');
 
   const dAppKit = useDAppKit();
-  const [network, setNetwork] = useState('testnet');
+  const network = APP_NETWORK;
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | undefined>(undefined);
   const [verificationReport, setVerificationReport] = useState<
     VerificationReport | undefined
   >(undefined);
@@ -48,11 +49,13 @@ export const Site = () => {
 
   const fetchData = useCallback(async () => {
     try {
+      setLoadError(undefined);
       const { siteResources: siteData, report } =
         await verifySiteInBrowser(query);
       setSiteResources(siteData);
       setVerificationReport(report);
-    } catch {
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : String(error));
       setVerificationReport(undefined);
     } finally {
       setLoading(false);
@@ -87,6 +90,7 @@ export const Site = () => {
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(undefined);
     setVerificationReport(undefined);
     setSiteResources({
       id: '',
@@ -110,14 +114,6 @@ export const Site = () => {
     fetchData();
   }, [query, fetchData]);
 
-  useEffect(() => {
-    loadSiteConfig().then((config) => {
-      if (config) {
-        setNetwork(config.network);
-      }
-    });
-  }, []);
-
   return (
     <div className="relative min-h-screen text-white overflow-hidden bg-[#0b0d14]">
       <BackgroundFx />
@@ -139,97 +135,111 @@ export const Site = () => {
                   </div>
                 </h1>
 
-                <ProvenanceCard report={verificationReport} />
+                {loadError ? (
+                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+                    <p className="font-semibold text-red-200">
+                      Unable to verify site
+                    </p>
+                    <p className="mt-1 text-red-100/80">{loadError}</p>
+                  </div>
+                ) : (
+                  <>
+                    <ProvenanceCard report={verificationReport} />
 
-                <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
-                  {[
-                    [
-                      <Hash className="w-4 h-4 text-gray-400" />,
-                      'Site Object ID',
-                      siteResources.id,
-                      siteResources.id
-                        ? `https://suiscan.xyz/${network}/object/${siteResources.id}`
-                        : '',
-                    ],
-                    [
-                      <User className="w-4 h-4 text-gray-400" />,
-                      'Creator',
-                      siteResources.creator,
-                    ],
-                    [
-                      <Info className="w-4 h-4 text-gray-400" />,
-                      'Description',
-                      siteResources.description,
-                    ],
-                    [
-                      <ImageIcon className="w-4 h-4 text-gray-400" />,
-                      'Image URL',
-                      siteResources.imageUrl,
-                    ],
-                    [
-                      <LinkIcon className="w-4 h-4 text-gray-400" />,
-                      'Link',
-                      siteResources.link,
-                      siteResources.link,
-                    ],
-                    [
-                      <Tag className="w-4 h-4 text-gray-400" />,
-                      'Name',
-                      siteResources.name,
-                    ],
-                    [
-                      <ExternalLink className="w-4 h-4 text-gray-400" />,
-                      'Project URL',
-                      siteResources.projectUrl,
-                      siteResources.projectUrl,
-                    ],
-                  ].map(([icon, label, value, link], idx) => (
-                    <div key={idx} className="flex items-center">
-                      <div className="w-30 shrink-0 flex items-center gap-2 text-gray-400">
-                        {icon}
-                        {label}
-                      </div>
-                      <div className="mx-2 text-gray-500">:</div>
-                      <div className="flex-1 flex items-center gap-1 truncate">
-                        {link && typeof link === 'string' ? (
-                          <>
-                            <a
-                              href={link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="truncate text-blue-300 underline"
-                              title={String(link)}
-                            >
-                              {value}
-                            </a>
-                            <a
-                              href={link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-blue-300"
-                              title="Open link"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          </>
-                        ) : (
-                          <span className="truncate" title={String(value)}>
-                            <code>{value || '-'}</code>
-                          </span>
-                        )}
-                      </div>
+                    <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
+                      {[
+                        [
+                          <Hash className="w-4 h-4 text-gray-400" />,
+                          'Site Object ID',
+                          siteResources.id,
+                          siteResources.id
+                            ? `https://suiscan.xyz/${network}/object/${siteResources.id}`
+                            : '',
+                        ],
+                        [
+                          <User className="w-4 h-4 text-gray-400" />,
+                          'Creator',
+                          siteResources.creator,
+                        ],
+                        [
+                          <Info className="w-4 h-4 text-gray-400" />,
+                          'Description',
+                          siteResources.description,
+                        ],
+                        [
+                          <ImageIcon className="w-4 h-4 text-gray-400" />,
+                          'Image URL',
+                          siteResources.imageUrl,
+                        ],
+                        [
+                          <LinkIcon className="w-4 h-4 text-gray-400" />,
+                          'Link',
+                          siteResources.link,
+                          siteResources.link,
+                        ],
+                        [
+                          <Tag className="w-4 h-4 text-gray-400" />,
+                          'Name',
+                          siteResources.name,
+                        ],
+                        [
+                          <ExternalLink className="w-4 h-4 text-gray-400" />,
+                          'Project URL',
+                          siteResources.projectUrl,
+                          siteResources.projectUrl,
+                        ],
+                      ].map(([icon, label, value, link], idx) => (
+                        <div key={idx} className="flex items-center">
+                          <div className="w-30 shrink-0 flex items-center gap-2 text-gray-400">
+                            {icon}
+                            {label}
+                          </div>
+                          <div className="mx-2 text-gray-500">:</div>
+                          <div className="flex-1 flex items-center gap-1 truncate">
+                            {link && typeof link === 'string' ? (
+                              <>
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate text-blue-300 underline"
+                                  title={String(link)}
+                                >
+                                  {value}
+                                </a>
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-blue-300"
+                                  title="Open link"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              </>
+                            ) : (
+                              <span
+                                className="truncate"
+                                title={String(value)}
+                              >
+                                <code>{value || '-'}</code>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
 
-                <ResourceTable
-                  artifactReport={verificationReport?.artifact}
-                  siteObjOwner={siteResources.siteObjOwner}
-                  resources={siteResources.resources}
-                  epoch={siteResources.epoch}
-                  blobs={siteResources.blobs}
-                  onExtend={onExtend}
-                />
+                    <ResourceTable
+                      artifactReport={verificationReport?.artifact}
+                      siteObjOwner={siteResources.siteObjOwner}
+                      resources={siteResources.resources}
+                      epoch={siteResources.epoch}
+                      blobs={siteResources.blobs}
+                      onExtend={onExtend}
+                    />
+                  </>
+                )}
               </>
             )}
           </div>

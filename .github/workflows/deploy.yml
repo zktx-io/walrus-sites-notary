@@ -128,7 +128,6 @@ jobs:
       id-token: write
       contents: write
       actions: read
-    uses: zktx-io/walrus-sites-provenance/.github/workflows/deploy_with_slsa3.yml@873b86b935c4e3cea7862ad62317f4a3b89b54bc # v0.5.9
+    uses: zktx-io/walrus-sites-provenance/.github/workflows/deploy_with_slsa3.yml@d9080e4d4aa78ab7d5a84303f01a966a3356bb2e # v0.6.1
     secrets:
       GIT_SIGNER_PIN: ${{ secrets.GIT_SIGNER_PIN }}
-      ED25519_PRIVATE_KEY: ${{ secrets.ED25519_PRIVATE_KEY }}

@@ -116,6 +116,9 @@ type FetchFailedProgressEvent = Extract<
   { type: 'fetch_failed' }
 >;
 
+const verifierAssetBaseUrl = (): string | undefined =>
+  typeof window === 'undefined' ? undefined : '/assets';
+
 const describeProgressSource = (
   source?: FetchFailedProgressEvent['source'],
 ): string => {
@@ -553,6 +556,7 @@ export const verifyMvrSourceBuild = async (
     log?.(
       '⚙️  Selecting Move verifier from reference bytecode version...',
     );
+    const browserVerifierAssetBaseUrl = verifierAssetBaseUrl();
     const verificationResult = await (
       adapters.verifyProvenance ?? verifyMovePackageProvenance
     )(
@@ -561,6 +565,9 @@ export const verifyMvrSourceBuild = async (
         rootGit,
         intent: deployment.kind,
         reference: createReferenceArtifact(deployment, packageAddress),
+        ...(browserVerifierAssetBaseUrl
+          ? { verifierAssetBaseUrl: browserVerifierAssetBaseUrl }
+          : {}),
         ansiColor: true,
         network,
         githubToken,

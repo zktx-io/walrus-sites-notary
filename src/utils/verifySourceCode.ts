@@ -3,6 +3,8 @@ import {
   type VerificationResult,
 } from '../verification/mvrSourceBuild';
 
+import type { Network } from './suiClient';
+
 export type { VerificationResult };
 
 /**
@@ -17,7 +19,7 @@ export const verifySourceCode = async (
   path: string,
   packageAddress: string,
   txDigest: string,
-  network: 'mainnet' | 'testnet' | 'devnet',
+  network: Network,
   log?: (message: string) => void,
   githubToken?: string,
 ): Promise<VerificationResult> =>

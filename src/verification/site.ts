@@ -1,6 +1,6 @@
 import { getSiteResources, SiteResourceData } from '../utils/getSiteResources';
 import { parseJsonlBundle } from '../utils/parseJsonl';
-import { readBlob } from '../utils/readBlob';
+import { readResource } from '../utils/readBlob';
 
 import { verifySiteArtifacts } from './artifacts';
 import { createBrowserSigstoreReport } from './browserSigstore';
@@ -29,7 +29,7 @@ export const verifySiteInBrowser = async (
     };
   }
 
-  const blobBytes = await readBlob(jsonl.blobId, jsonl.range);
+  const blobBytes = await readResource(jsonl);
   const provenance = parseJsonlBundle(new TextDecoder().decode(blobBytes));
   const statement = provenance.statement;
   const sigstore = createBrowserSigstoreReport(statement);
