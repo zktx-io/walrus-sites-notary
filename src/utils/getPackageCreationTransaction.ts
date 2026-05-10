@@ -3,11 +3,11 @@ import {
   parseDeploymentContextFromBytes,
 } from '../verification/mvrDeployment';
 
-import { createGrpcClient, Network } from './suiClient';
+import { APP_NETWORK, createGrpcClient, Network } from './suiClient';
 
 export const getPackageCreationTransaction = async (
   packageId: string,
-  network: Network = 'mainnet',
+  network: Network = APP_NETWORK,
 ): Promise<string> => {
   const grpcClient = createGrpcClient(network);
 

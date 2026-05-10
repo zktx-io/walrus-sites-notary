@@ -2,8 +2,12 @@ import { Transaction } from '@mysten/sui/transactions';
 import { normalizeStructTag } from '@mysten/sui/utils';
 import { walrus } from '@mysten/walrus';
 
-import { loadSiteConfig } from './loadSiteConfig';
-import { createGrpcClient, createGraphQLClient, Network } from './suiClient';
+import {
+  APP_NETWORK,
+  createGrpcClient,
+  createGraphQLClient,
+  Network,
+} from './suiClient';
 
 // BLOCKER(extendEpoch/readWalType): getNormalizedMoveStruct was a JSON-RPC-only method.
 // Resolved via GraphQL: StakedWal struct fields fetched from GraphQL to extract WAL coin type.
@@ -89,11 +93,10 @@ export const extendEpoch = async (opts: {
   objectIds: string[];
   epochs: number;
 }): Promise<Transaction> => {
-  const config = await loadSiteConfig();
-  const network = (config?.network || 'testnet') as Network;
+  const network = APP_NETWORK;
 
   // Walrus 1.x: use createGrpcClient extended with walrus().
-  // Network is caller-provided (from site config), not a hardcoded module-scope literal.
+  // The hosted app is mainnet-only; site.config.json remains a deployment input.
   const walrusClient = createGrpcClient(network).$extend(walrus());
   const baseClient = createGrpcClient(network);
 

@@ -11,6 +11,7 @@ import { useEffect, useState, useRef } from 'react';
 import { MvrData } from '../utils/getMvrData';
 import { getPackageCreationTransaction } from '../utils/getPackageCreationTransaction';
 import { extractSourceFailureHints } from '../utils/sourceFailureHints';
+import { APP_NETWORK } from '../utils/suiClient';
 import type { VerificationResult } from '../utils/verifySourceCode';
 
 type AnsiColorMap = Record<number, string>;
@@ -395,7 +396,7 @@ export const MvrCodeVerifier = ({
         path,
         packageAddress,
         txDigest,
-        'mainnet',
+        APP_NETWORK,
         addLog,
         githubTokenForRequest,
       );

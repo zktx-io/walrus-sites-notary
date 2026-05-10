@@ -1,8 +1,6 @@
 import { useCurrentAccount, useDAppKit } from '@mysten/dapp-kit-react';
 import { bcs } from '@mysten/sui/bcs';
 import { IntentScope, Keypair } from '@mysten/sui/cryptography';
-import { SuiGraphQLClient } from '@mysten/sui/graphql';
-import { SuiGrpcClient } from '@mysten/sui/grpc';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { fromBase64, toBase64 } from '@mysten/sui/utils';
@@ -14,35 +12,29 @@ import { useSearchParams } from 'react-router-dom';
 import { BackgroundFx } from '../components/BackgroundFx';
 import { Navbar } from '../components/Navbar';
 import { decryptBytes, encryptBytes } from '../utils/gitSigner';
+import {
+  APP_NETWORK,
+  createGraphQLClient,
+  createGrpcClient,
+  Network,
+} from '../utils/suiClient';
 import { usePinPrompt } from '../utils/usePinPrompt';
 
-// Sign page is chain-fixed to devnet (ephemeral keypair handshake flow).
-// Rationale: this is a signing relay that always runs on devnet for
-// ephemeral transaction broadcast; the target chain is in the payload.
-const SIGN_NETWORK = 'devnet' as const;
+// Sign page uses the same mainnet rail as the hosted app.
+const SIGN_NETWORK = APP_NETWORK;
 
-const GRPC_URL = 'https://fullnode.devnet.sui.io:443';
-const GQL_URL = 'https://graphql.devnet.sui.io/graphql';
-
-const grpcClient = new SuiGrpcClient({
-  network: SIGN_NETWORK,
-  baseUrl: GRPC_URL,
-});
-
-const gqlClient = new SuiGraphQLClient({
-  network: SIGN_NETWORK,
-  url: GQL_URL,
-});
+const grpcClient = createGrpcClient(SIGN_NETWORK);
+const gqlClient = createGraphQLClient(SIGN_NETWORK);
 
 interface Payload {
   intent: IntentScope;
-  network: 'testnet' | 'mainnet';
+  network: Network;
   address: string;
   bytes: string;
 }
 
 // gRPC-based address tx discovery via owned object previousTransaction.
-// GraphQL address.transactions is pruned aggressively on devnet;
+// GraphQL address.transactions can be pruned or delayed;
 // listOwnedObjects is retention-stable and does not rely on indexer pruning policy.
 
 const QUERY_TX_INPUT = `
@@ -318,7 +310,11 @@ export const Sign = () => {
       lastKnownDigestRef.current = digest;
 
       const decrypted = await decryptBytes(fullEncrypted, resolvedPin);
-      return JSON.parse(new TextDecoder().decode(decrypted)) as Payload;
+      const payload = JSON.parse(new TextDecoder().decode(decrypted)) as Payload;
+      if (payload.network !== SIGN_NETWORK) {
+        throw new Error(`Unsupported signing network: ${payload.network}`);
+      }
+      return payload;
     } catch (e) {
       console.error('[handleIncomingDigest] actual error:', e);
       throw new Error(`❌ Error while handling digest: ${digest}`);
