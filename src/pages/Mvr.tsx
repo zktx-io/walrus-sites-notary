@@ -1,4 +1,4 @@
-import { BookOpen, Github, ShieldCheck, TerminalSquare } from 'lucide-react';
+import { BookOpen, GitFork, ShieldCheck, TerminalSquare } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -42,7 +42,7 @@ export const Mvr = () => {
     const icon = artifactMatched ? (
       <ShieldCheck className="w-4 h-4 text-current transition-colors duration-150 group-hover:text-black dark:group-hover:text-white" />
     ) : (
-      <Github className="w-4 h-4 text-current transition-colors duration-150 group-hover:text-black dark:group-hover:text-white" />
+      <GitFork className="w-4 h-4 text-current transition-colors duration-150 group-hover:text-black dark:group-hover:text-white" />
     );
 
     return (

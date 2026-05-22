@@ -1,6 +1,6 @@
 import { useCurrentAccount, useDAppKit } from '@mysten/dapp-kit-react';
 import { ConnectButton } from '@mysten/dapp-kit-react/ui';
-import { Github, BookOpen, Info, LogOut } from 'lucide-react';
+import { BookOpen, GitFork, Info, LogOut } from 'lucide-react';
 import { Link as RouterLink } from 'react-router-dom';
 
 import { Search } from './Search';
@@ -33,7 +33,7 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
               className="p-2 rounded-full hover:bg-white/10 transition-colors"
               title="GitHub"
             >
-              <Github className="w-5 h-5" />
+              <GitFork className="w-5 h-5" />
             </a>
             <a
               href="https://docs.wal.app"
@@ -71,7 +71,7 @@ export const Navbar = ({ showInput = false }: { showInput?: boolean }) => {
                 className="p-2 rounded-full hover:bg-white/10 transition-colors"
                 title="GitHub"
               >
-                <Github className="w-5 h-5" />
+                <GitFork className="w-5 h-5" />
               </a>
               <a
                 href="https://docs.wal.app"

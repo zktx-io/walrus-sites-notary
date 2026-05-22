@@ -1,4 +1,4 @@
-import { ExternalLink, Folder, GitBranch, Github } from 'lucide-react';
+import { ExternalLink, Folder, GitBranch, GitFork } from 'lucide-react';
 
 import { MvrData } from '../utils/getMvrData';
 
@@ -7,7 +7,7 @@ export const MvrGitInfo = ({ mvrData }: { mvrData: MvrData }) => {
     <div className="p-6 rounded-lg mb-8 space-y-2 text-sm bg-white/3 backdrop-blur-md border border-white/5">
       {[
         [
-          <Github className="w-4 h-4 text-gray-400" />,
+          <GitFork className="w-4 h-4 text-gray-400" />,
           'Github',
           mvrData.git_info?.repository_url,
           mvrData.git_info?.repository_url,

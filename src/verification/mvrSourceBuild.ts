@@ -1,5 +1,5 @@
 import { normalizeSuiObjectId } from '@mysten/sui/utils';
-import { bytesToHex } from '@noble/hashes/utils';
+import { bytesToHex } from '@noble/hashes/utils.js';
 import { fetchMovePackageFromGitHub } from '@zktx.io/sui-move-builder';
 import {
   verifyMovePackageProvenance,

@@ -6,7 +6,6 @@ import {
   ImageIcon,
   Text,
   Mail,
-  Twitter,
 } from 'lucide-react';
 
 import { MvrData } from '../utils/getMvrData';
@@ -30,7 +29,7 @@ export const MvrMetaData = ({ mvrData }: { mvrData: MvrData }) => {
     ) {
       return {
         type: 'twitter',
-        icon: <Twitter className="w-4 h-4 text-gray-400" />,
+        icon: <ExternalLink className="w-4 h-4 text-gray-400" />,
         href: contact,
         label: contact.replace(/^https:\/\/(twitter\.com|x\.com)\//, '@'),
       };

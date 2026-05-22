@@ -1,6 +1,6 @@
 import { fromBase64 } from '@mysten/sui/utils';
-import { blake2b } from '@noble/hashes/blake2b';
-import { sha256 } from '@noble/hashes/sha256';
+import { blake2b } from '@noble/hashes/blake2.js';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 import { JsonLPayload } from '../utils/parseJsonl';
 
@@ -43,7 +43,9 @@ export const createBytecodeDumpSha256 = (
 ): string => {
   const digest: number[] = Array.from(createDigest(modules, dependencies));
   const rawHash = sha256(
-    `${JSON.stringify({ modules, dependencies, digest })}\n`,
+    new TextEncoder().encode(
+      `${JSON.stringify({ modules, dependencies, digest })}\n`,
+    ),
   );
 
   return Array.from(rawHash)

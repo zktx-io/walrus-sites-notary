@@ -7,7 +7,7 @@ import {
   normalizeSuiAddress,
   toBase64,
 } from '@mysten/sui/utils';
-import { sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 import { decryptBytes } from './gitSigner';
 import { APP_NETWORK, type Network } from './suiClient';
