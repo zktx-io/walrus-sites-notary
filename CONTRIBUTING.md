@@ -45,6 +45,7 @@ The CI workflow `DCO Check` enforces this requirement for every pull request com
 
 ## Testing Requirements
 
+- Prerequisites: Install dependencies first by running `npm install`.
 - Run `npm run test:ci` and `npm run build` before opening a PR.
 - Major functional changes must add or update automated tests covering both expected and failure paths.
 - CI must pass before merge.
